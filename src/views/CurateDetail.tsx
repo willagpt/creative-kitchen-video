@@ -697,8 +697,8 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
         </div>
 
         {/* ═══ RIGHT PANEL ═══ */}
-        <div className="w-80 border-l border-white/5 bg-[#111118] overflow-y-auto flex-shrink-0">
-          <div className="p-4 pb-24 space-y-5">
+        <div className="w-80 border-l border-white/5 bg-[#111118] flex flex-col flex-shrink-0">
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
             {/* ── Clip Name ── */}
             <div>
@@ -1040,8 +1040,8 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
             </div>
           </div>
 
-          {/* ═══ STICKY BOTTOM: Approve / Reject ═══ */}
-          <div className="sticky bottom-0 bg-[#111118] border-t border-white/5 p-4 space-y-2">
+          {/* ═══ FIXED BOTTOM: Approve / Reject ═══ */}
+          <div className="flex-shrink-0 bg-[#111118] border-t border-white/5 p-3 space-y-1.5">
             <div className="flex gap-2">
               <button
                 onClick={handleApprove}
