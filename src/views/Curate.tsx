@@ -7,6 +7,7 @@ import { toast } from '@/components/Toast';
 import { Copy } from 'lucide-react';
 import { driveThumbUrl } from '@/lib/drive';
 import { loadClipsFolder, loadMusicFolder, resolveLocalVideo } from '@/lib/localFiles';
+import { CurateDetail } from './CurateDetail';
 
 const COLOUR_GRADE_PRESETS: Record<string, ColourGrade> = {
   Original: { brightness: 100, contrast: 100, saturate: 100, temperature: 0, shadows: 0 },
@@ -703,6 +704,20 @@ export function Curate() {
   // @ts-expect-error — colour grade filter temporarily unused during grid redesign
   const _filterStyle = `brightness(${colourGrade.brightness / 100}) contrast(${colourGrade.contrast / 100}) saturate(${colourGrade.saturate / 100}) hue-rotate(${colourGrade.temperature * 1.5}deg)`;
 
+  // ═══ FULL-SCREEN DETAIL VIEW ═══
+  // When a clip is selected, show the detail editor instead of the grid
+  const detailClip = selectedClipId ? clips.find((c) => c.id === selectedClipId) : null;
+  if (detailClip) {
+    return (
+      <CurateDetail
+        clip={detailClip}
+        clipList={filteredClips}
+        onBack={() => setSelectedClipId(null)}
+        onNavigate={(id) => setSelectedClipId(id)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-zinc-950">
       {/* Header */}
@@ -815,329 +830,7 @@ export function Curate() {
           )}
         </div>
 
-        {/* RIGHT: Curation detail panel — appears when a clip is selected */}
-        {firstPendingClip && selectedClipId && (
-          <div className="w-96 border-l border-zinc-800 bg-zinc-900/50 overflow-y-auto flex-shrink-0">
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-zinc-100 truncate">{firstPendingClip.name}</h3>
-              <button onClick={() => setSelectedClipId(null)} className="text-zinc-500 hover:text-zinc-300 text-xs">Close</button>
-            </div>
-            <div className="p-4 space-y-4">
-              {/* Video player area */}
-              {(() => {
-                // Resolve video source: local file first, then Drive
-                const localSrc = resolveLocalVideo(firstPendingClip.name, localFileMap);
-                const driveId = firstPendingClip.drive_file_id || (() => {
-                  const base = firstPendingClip.name.replace(/\.[^.]+$/, '');
-                  for (const [k, v] of videoFileMap.entries()) {
-                    if (k.startsWith(base) || base.startsWith(k)) return v;
-                  }
-                  return null;
-                })();
-                const thumbSrc = firstPendingClip.thumbnail_url
-                  || (firstPendingClip.drive_file_id ? driveThumbUrl(firstPendingClip.drive_file_id) : null)
-                  || (() => { const base = firstPendingClip.name.replace(/\.[^.]+$/, ''); for (const [k, v] of thumbnailMap.entries()) { if (k.startsWith(base)) return driveThumbUrl(v); } return null; })();
-
-                return (
-                  <div className="space-y-2">
-                    <div className="bg-black rounded-lg overflow-hidden aspect-video border border-zinc-800">
-                      {localSrc ? (
-                        /* Real HTML5 video player — V1 style */
-                        <video
-                          key={firstPendingClip.id}
-                          src={localSrc}
-                          controls
-                          className="w-full h-full object-contain bg-black"
-                          preload="auto"
-                        />
-                      ) : driveId ? (
-                        <iframe
-                          key={firstPendingClip.id}
-                          src={`https://drive.google.com/file/d/${driveId}/preview`}
-                          className="w-full h-full"
-                          allow="autoplay"
-                          allowFullScreen
-                        />
-                      ) : thumbSrc ? (
-                        <img src={thumbSrc} alt={firstPendingClip.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-zinc-600 text-sm">
-                          {firstPendingClip.name}
-                        </div>
-                      )}
-                    </div>
-                    {!localSrc && localFileMap.size === 0 && (
-                      <button
-                        onClick={async () => {
-                          const map = await loadClipsFolder();
-                          setLocalFileMap(map);
-                          toast('success', `Loaded ${map.size / 2} video files`);
-                        }}
-                        className="w-full text-center text-[11px] text-purple-400 hover:text-purple-300 py-1"
-                      >
-                        Load clips folder for playback
-                      </button>
-                    )}
-                    <p className="text-xs text-zinc-500 text-center">Space to play/pause</p>
-                  </div>
-                );
-              })()}
-
-              {/* Clip info */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-zinc-100">{firstPendingClip.name}</h3>
-                    <span className="text-xs px-2 py-1 bg-zinc-800 text-zinc-400 rounded">
-                      {firstPendingClip.category}
-                    </span>
-                  </div>
-                  <div className="flex gap-4 text-xs text-zinc-500">
-                    <span>{firstPendingClip.duration.toFixed(1)}s</span>
-                    <span>{firstPendingClip.ratio}</span>
-                    <span className="capitalize">{firstPendingClip.type || 'body'}</span>
-                  </div>
-                </div>
-
-                {/* Sub-type selector */}
-                <div className="pt-2 border-t border-zinc-800">
-                  <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Sub-type</h4>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {(['food-action', 'food-beauty', 'lifestyle', 'product', 'stop-motion'] as const).map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => handleSubTypeChange(st)}
-                        className={`px-2 py-1 text-[10px] rounded-full border transition-colors ${
-                          firstPendingClip.sub_type === st
-                            ? SUB_TYPE_STYLES[st]
-                            : 'border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Trim controls */}
-                <div className="pt-2 border-t border-zinc-800">
-                  <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider mb-3">Trim</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs text-zinc-400">
-                      <span>
-                        IN: {(trimIn ?? 0).toFixed(1)}s → OUT: {(trimOut ?? firstPendingClip.duration).toFixed(1)}s
-                      </span>
-                      <span className="text-zinc-600">
-                        (trimmed: {((trimOut ?? firstPendingClip.duration) - (trimIn ?? 0)).toFixed(1)}s)
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleTrimChange('trim_in', (trimIn ?? 0) - 0.1)}
-                          className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                        >
-                          -0.1s
-                        </button>
-                        <button
-                          onClick={() => handleTrimChange('trim_in', (trimIn ?? 0) + 0.1)}
-                          className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                        >
-                          +0.1s
-                        </button>
-                      </div>
-
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleTrimChange('trim_out', (trimOut ?? firstPendingClip.duration) - 0.1)}
-                          className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                        >
-                          -0.1s
-                        </button>
-                        <button
-                          onClick={() => handleTrimChange('trim_out', (trimOut ?? firstPendingClip.duration) + 0.1)}
-                          className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                        >
-                          +0.1s
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => setTrimIn(0)}
-                        className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                      >
-                        Set IN <span className="text-zinc-500">[I]</span>
-                      </button>
-                      <button
-                        onClick={() => setTrimOut(firstPendingClip.duration)}
-                        className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                      >
-                        Set OUT <span className="text-zinc-500">[O]</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setTrimIn(null);
-                          setTrimOut(null);
-                          handleTrimChange('trim_in', null);
-                          handleTrimChange('trim_out', null);
-                        }}
-                        className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                      >
-                        Reset
-                      </button>
-                      <button
-                        onClick={handlePreviewTrim}
-                        className="flex-1 px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
-                      >
-                        Preview <span className="text-zinc-500">[P]</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tags section */}
-                <div className="pt-2 border-t border-zinc-800">
-                  <h4 className="text-[10px] text-zinc-500 uppercase tracking-wider mb-3">Tags</h4>
-                  <div className="space-y-3">
-                    {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
-                      <div key={category}>
-                        <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1.5">{category}</p>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {tags.map((tag) => (
-                            <button
-                              key={tag}
-                              onClick={() => handleTagToggle(tag)}
-                              className={`px-2 py-1 text-[10px] rounded-full border transition-colors ${
-                                selectedTags.includes(tag)
-                                  ? 'border-indigo-500 bg-indigo-500/20 text-indigo-400'
-                                  : 'border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                              }`}
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* NOTES */}
-                <div className="mt-4">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Notes</div>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    onBlur={() => handleSaveNotes()}
-                    placeholder="Add curation notes..."
-                    className="w-full h-20 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md text-xs text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600"
-                  />
-                </div>
-
-                {/* STAR RATING */}
-                <div className="mt-4">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Rating</div>
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => handleStarRating(star)}
-                        className={`text-lg transition-colors ${
-                          starRating >= star ? 'text-amber-500' : 'text-zinc-700 hover:text-zinc-500'
-                        }`}
-                      >
-                        ★
-                      </button>
-                    ))}
-                    {starRating > 0 && (
-                      <button onClick={() => handleStarRating(0)} className="text-[10px] text-zinc-600 hover:text-zinc-400 ml-2">
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* SEGMENTS */}
-                <div className="mt-4">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Segments</div>
-                  <div className="space-y-2">
-                    {segments.length > 0 && (
-                      <div className="space-y-2 mb-3">
-                        {segments.map((seg) => (
-                          <div key={seg.id} className="flex items-center gap-2 p-2 bg-zinc-800/50 rounded border border-zinc-700">
-                            <input
-                              type="text"
-                              value={seg.label}
-                              onChange={(e) => handleUpdateSegmentLabel(seg.id, e.target.value)}
-                              className="flex-1 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-xs text-zinc-300 focus:outline-none focus:border-zinc-600"
-                            />
-                            <span className="text-[10px] text-zinc-500">
-                              {seg.trim_in.toFixed(1)}s - {seg.trim_out.toFixed(1)}s
-                            </span>
-                            <button
-                              onClick={() => handleDeleteSegment(seg.id)}
-                              className="text-xs text-zinc-600 hover:text-red-400 transition-colors"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={handleAddSegment}
-                      className="w-full px-2 py-1.5 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
-                    >
-                      + Segment
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="space-y-2">
-                <div className="flex gap-2 justify-center">
-                  <button
-                    onClick={handleApprove}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    Approve <span className="text-xs ml-1 text-emerald-200">[A]</span>
-                  </button>
-                  <button
-                    onClick={handleReject}
-                    className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    Reject <span className="text-xs ml-1 text-zinc-500">[R]</span>
-                  </button>
-                  <button
-                    onClick={handleSkip}
-                    className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    Skip <span className="text-xs ml-1 text-zinc-500">[S]</span>
-                  </button>
-                </div>
-                <div className="flex gap-2 justify-center">
-                  <button
-                    onClick={handleDuplicate}
-                    className="px-4 py-2.5 border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Copy className="w-4 h-4" />
-                    Duplicate
-                  </button>
-                  <button
-                    onClick={handleReset}
-                    className="px-4 py-2.5 border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Side panel removed — CurateDetail full-screen view handles clip editing via early return above */}
       </div>
     </div>
   );
