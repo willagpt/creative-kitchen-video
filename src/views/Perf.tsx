@@ -145,9 +145,9 @@ export function Perf() {
   const ctrRange = maxCtr - minCtr || 1;
 
   const StatCard = ({ label, value }: { label: string; value: string | number }) => (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex-1 min-w-[160px]">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex-1 min-w-[160px] text-center">
       <div className="text-3xl font-bold text-zinc-100 tabular-nums">{value}</div>
-      <div className="text-xs text-zinc-500 mt-1 uppercase tracking-widest">{label}</div>
+      <div className="text-xs text-zinc-500 mt-2 capitalize">{label}</div>
     </div>
   );
 

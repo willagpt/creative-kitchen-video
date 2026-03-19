@@ -84,9 +84,9 @@ export function Pipeline() {
   }, [clips]);
 
   const StatCard = ({ label, value, unit }: { label: string; value: number | string; unit?: string }) => (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex-1 min-w-[160px]">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 flex-1 min-w-[160px] text-center">
       <div className="text-3xl font-bold text-zinc-100 tabular-nums">{value}</div>
-      <div className="text-xs text-zinc-500 mt-1">
+      <div className="text-xs text-zinc-500 mt-2 capitalize">
         {label}
         {unit && <span className="ml-1">{unit}</span>}
       </div>
