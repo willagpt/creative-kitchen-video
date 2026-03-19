@@ -101,8 +101,47 @@ export async function loadClipsFolder(): Promise<Map<string, string>> {
   }
 }
 
+// Audio extensions we recognize
+const AUDIO_EXTENSIONS = /\.(mp3|wav|aac|m4a|ogg|flac|wma|aiff|alac)$/i;
+
+function isAudioFile(file: File): boolean {
+  if (file.type && file.type.startsWith('audio/')) return true;
+  if (AUDIO_EXTENSIONS.test(file.name)) return true;
+  return false;
+}
+
+async function scanDirectoryForAudio(
+  handle: FileSystemDirectoryHandle,
+  map: Map<string, string>,
+  depth = 0
+): Promise<void> {
+  if (depth > 5) return;
+  // @ts-expect-error — async iterator on FileSystemDirectoryHandle
+  for await (const entry of handle.values()) {
+    if (entry.kind === 'file') {
+      try {
+        const file: File = await entry.getFile();
+        if (isAudioFile(file)) {
+          const blobUrl = URL.createObjectURL(file);
+          const baseName = file.name.replace(/\.[^.]+$/, '');
+          map.set(baseName, blobUrl);
+          map.set(file.name, blobUrl);
+        }
+      } catch (err) {
+        console.warn(`Skipped audio file ${entry.name}:`, err);
+      }
+    } else if (entry.kind === 'directory') {
+      try {
+        await scanDirectoryForAudio(entry as FileSystemDirectoryHandle, map, depth + 1);
+      } catch (err) {
+        console.warn(`Skipped audio directory ${entry.name}:`, err);
+      }
+    }
+  }
+}
+
 /**
- * Load a music folder similarly.
+ * Load a music folder with recursive scanning.
  */
 export async function loadMusicFolder(): Promise<Map<string, string>> {
   const musicMap = new Map<string, string>();
@@ -111,20 +150,14 @@ export async function loadMusicFolder(): Promise<Map<string, string>> {
     const handle = await window.showDirectoryPicker({ mode: 'read' });
     if (!handle) return musicMap;
 
-    for await (const entry of handle.values()) {
-      if (entry.kind === 'file') {
-        const file: File = await entry.getFile();
-        const isAudio = file.type.startsWith('audio/') ||
-          file.name.match(/\.(mp3|wav|aac|m4a|ogg|flac)$/i);
+    await scanDirectoryForAudio(handle, musicMap);
 
-        if (isAudio) {
-          const blobUrl = URL.createObjectURL(file);
-          musicMap.set(file.name, blobUrl);
-        }
-      }
-    }
+    const count = musicMap.size;
+    console.log(`[CK] Loaded ${count} music files from local folder`);
     return musicMap;
-  } catch {
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') return musicMap;
+    console.error('Failed to load music folder:', err);
     return musicMap;
   }
 }
