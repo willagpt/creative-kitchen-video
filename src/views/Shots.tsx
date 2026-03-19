@@ -3,7 +3,7 @@ import type { Clip } from '@/types';
 import { useStore } from '@/store';
 import { ClipCard } from '@/components/ClipCard';
 import { Dropdown } from '@/components/Dropdown';
-import { getThumbnailFiles } from '@/lib/drive';
+import { getThumbnailFiles, getVideoFiles } from '@/lib/drive';
 import { supabase } from '@/lib/supabase';
 import { Film, Grid3X3, List } from 'lucide-react';
 
@@ -14,6 +14,7 @@ export function Shots() {
     workspace,
     fetchClips,
     setThumbnailMap,
+    setVideoFileMap,
     setActiveTab,
     selectedClips,
     clearSelection,
@@ -42,6 +43,9 @@ export function Shots() {
       getThumbnailFiles()
         .then(setThumbnailMap)
         .catch((err) => console.error('Failed to load thumbnails:', err));
+      getVideoFiles()
+        .then(setVideoFileMap)
+        .catch((err) => console.error('Failed to load video files:', err));
     }
   }, [workspace, fetchClips, setThumbnailMap]);
 

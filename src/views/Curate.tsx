@@ -45,7 +45,7 @@ interface Segment {
 }
 
 export function Curate() {
-  const { clips, setActiveTab, updateClip, user, workspace, fetchClips, thumbnailMap } = useStore();
+  const { clips, setActiveTab, updateClip, user, workspace, fetchClips, thumbnailMap, videoFileMap } = useStore();
   const [_showColourPanel, _setShowColourPanel] = useState(false);
   const [colourGrade, setColourGrade] = useState<ColourGrade>(COLOUR_GRADE_PRESETS.Original);
   const [activePreset, setActivePreset] = useState('Original');
@@ -811,11 +811,12 @@ export function Curate() {
             <div className="p-4 space-y-4">
               {/* Video player area */}
               {(() => {
-                // Resolve Drive file ID from clip or thumbnailMap
+                // Resolve VIDEO file ID from clip, videoFileMap, or thumbnailMap
                 const driveId = firstPendingClip.drive_file_id || (() => {
                   const base = firstPendingClip.name.replace(/\.[^.]+$/, '');
-                  for (const [k, v] of thumbnailMap.entries()) {
-                    if (k.startsWith(base)) return v;
+                  // Try videoFileMap first (actual video files)
+                  for (const [k, v] of videoFileMap.entries()) {
+                    if (k.startsWith(base) || base.startsWith(k)) return v;
                   }
                   return null;
                 })();

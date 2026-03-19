@@ -41,9 +41,13 @@ interface AppState {
   activeTab: string;
   setActiveTab: (tab: string) => void;
 
-  // Thumbnail map (filename -> drive file id)
+  // Thumbnail map (filename -> drive file id for thumbnails)
   thumbnailMap: Map<string, string>;
   setThumbnailMap: (map: Map<string, string>) => void;
+
+  // Video file map (clip basename -> drive file id for video playback)
+  videoFileMap: Map<string, string>;
+  setVideoFileMap: (map: Map<string, string>) => void;
 
   // Header filters
   showCuratedOnly: boolean;
@@ -132,6 +136,8 @@ export const useStore = create<AppState>((set) => ({
 
   thumbnailMap: new Map(),
   setThumbnailMap: (thumbnailMap) => set({ thumbnailMap }),
+  videoFileMap: new Map(),
+  setVideoFileMap: (videoFileMap) => set({ videoFileMap }),
 
   showCuratedOnly: false,
   setShowCuratedOnly: (showCuratedOnly) => set({ showCuratedOnly }),

@@ -66,4 +66,29 @@ export function driveThumbUrl(fileId: string): string {
   return `https://lh3.googleusercontent.com/d/${fileId}=w400`;
 }
 
+/**
+ * Fetch video file mappings from the main Drive folder.
+ * Maps clip basenames (without extension) to their Drive file IDs.
+ * These IDs can be used for iframe preview/playback.
+ */
+export async function getVideoFiles(): Promise<Map<string, string>> {
+  try {
+    const files = await listDriveFiles(DRIVE_FOLDER_ID);
+    const map = new Map<string, string>();
+    for (const file of files) {
+      if (file.mimeType?.startsWith('video/') || file.name.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+        // Map basename (without extension) -> file.id
+        const baseName = file.name.replace(/\.[^.]+$/, '');
+        map.set(baseName, file.id);
+        // Also map full name
+        map.set(file.name, file.id);
+      }
+    }
+    return map;
+  } catch (error) {
+    console.debug('Video folder not accessible:', error);
+    return new Map();
+  }
+}
+
 export { GOOGLE_API_KEY, DRIVE_FOLDER_ID };
