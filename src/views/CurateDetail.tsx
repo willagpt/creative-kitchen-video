@@ -93,6 +93,9 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
   const [targetRatio, setTargetRatio] = useState<string>('Original');
   const [showColour, setShowColour] = useState(true);
   const [clipType, setClipType] = useState(clip.type || 'body');
+  const [notes, setNotes] = useState(clip.curation_note || '');
+  const [starRating, setStarRating] = useState(clip.star_rating || 0);
+  const [segments, setSegments] = useState<{ id: string; label: string; trim_in: number; trim_out: number }[]>([]);
 
   /* ── Nav index ── */
   const idx = clipList.findIndex((c) => c.id === clip.id);
@@ -130,6 +133,21 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
     setTargetRatio('Original');
     setCurTime(0);
     setPlaying(false);
+    setNotes(clip.curation_note || '');
+    setStarRating(clip.star_rating || 0);
+  }, [clip.id]);
+
+  /* ── Fetch segments for current clip ── */
+  useEffect(() => {
+    const fetchSegments = async () => {
+      const { data } = await supabase
+        .from('clip_segments')
+        .select('*')
+        .eq('clip_id', clip.id)
+        .order('trim_in');
+      setSegments((data as { id: string; label: string; trim_in: number; trim_out: number }[]) || []);
+    };
+    fetchSegments();
   }, [clip.id]);
 
   /* ── Generate thumbnail strip from video ── */
@@ -369,6 +387,86 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
     await persistClip({ type: t } as Partial<Clip>);
   };
 
+  /* ── Notes ── */
+  const handleSaveNotes = async () => {
+    await persistClip({ curation_note: notes || null } as Partial<Clip>);
+  };
+
+  /* ── Star rating ── */
+  const handleStarRating = async (rating: number) => {
+    setStarRating(rating);
+    await persistClip({ star_rating: rating } as Partial<Clip>);
+  };
+
+  /* ── Segments ── */
+  const handleAddSegment = async () => {
+    if (!workspace || !user) return;
+    try {
+      const { data } = await supabase
+        .from('clip_segments')
+        .insert({
+          clip_id: clip.id,
+          workspace_id: workspace.id,
+          label: `${clip.name.slice(0, 20)}_seg${segments.length + 1}`,
+          trim_in: trimIn,
+          trim_out: trimOut,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+      if (data) {
+        setSegments([...segments, data as { id: string; label: string; trim_in: number; trim_out: number }]);
+        toast('success', 'Segment created');
+      }
+    } catch (err) {
+      console.error('Failed to create segment:', err);
+      toast('error', 'Failed to create segment');
+    }
+  };
+
+  const handleDeleteSegment = async (segId: string) => {
+    try {
+      await supabase.from('clip_segments').delete().eq('id', segId);
+      setSegments(segments.filter((s) => s.id !== segId));
+      toast('success', 'Segment deleted');
+    } catch (err) {
+      console.error('Failed to delete segment:', err);
+    }
+  };
+
+  const handleUpdateSegmentLabel = async (segId: string, newLabel: string) => {
+    try {
+      await supabase.from('clip_segments').update({ label: newLabel }).eq('id', segId);
+      setSegments(segments.map((s) => (s.id === segId ? { ...s, label: newLabel } : s)));
+    } catch (err) {
+      console.error('Failed to update segment:', err);
+    }
+  };
+
+  /* ── Duplicate clip ── */
+  const handleDuplicate = async () => {
+    if (!workspace) return;
+    try {
+      const { data } = await supabase
+        .from('clips')
+        .insert({
+          ...clip,
+          id: undefined,
+          name: `${clip.name} (copy)`,
+          approved: false,
+          rejected: false,
+          curation_note: `Duplicate of ${clip.name}`,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (data) toast('success', `Duplicated: ${clip.name}`);
+    } catch (err) {
+      console.error('Failed to duplicate:', err);
+      toast('error', 'Failed to duplicate');
+    }
+  };
+
   /* ── CSS filter for colour grading ── */
   const filterStyle = buildFilterStyle(colourGrade);
 
@@ -600,7 +698,7 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
 
         {/* ═══ RIGHT PANEL ═══ */}
         <div className="w-80 border-l border-white/5 bg-[#111118] overflow-y-auto flex-shrink-0">
-          <div className="p-4 space-y-5">
+          <div className="p-4 pb-24 space-y-5">
 
             {/* ── Clip Name ── */}
             <div>
@@ -779,6 +877,85 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
                   Preview Trim
                 </button>
               </div>
+            </div>
+
+            {/* ── Notes ── */}
+            <div className="space-y-2.5">
+              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Notes</h3>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={handleSaveNotes}
+                placeholder="Add curation notes..."
+                className="w-full h-16 px-2.5 py-2 bg-[#1a1a24] border border-white/10 rounded text-[11px] text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none focus:border-white/20"
+              />
+            </div>
+
+            {/* ── Star Rating ── */}
+            <div className="space-y-2.5">
+              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Rating</h3>
+              <div className="flex gap-1 items-center">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => handleStarRating(star)}
+                    className={`text-lg transition-colors ${
+                      starRating >= star ? 'text-amber-500' : 'text-zinc-700 hover:text-zinc-500'
+                    }`}
+                  >
+                    ★
+                  </button>
+                ))}
+                {starRating > 0 && (
+                  <button onClick={() => handleStarRating(0)} className="text-[9px] text-zinc-600 hover:text-zinc-400 ml-2">
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* ── Segments ── */}
+            <div className="space-y-2.5">
+              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Segments</h3>
+              {segments.length > 0 && (
+                <div className="space-y-1.5">
+                  {segments.map((seg) => (
+                    <div key={seg.id} className="flex items-center gap-1.5 p-1.5 bg-[#1a1a24] rounded border border-white/5">
+                      <input
+                        type="text"
+                        value={seg.label}
+                        onChange={(e) => handleUpdateSegmentLabel(seg.id, e.target.value)}
+                        className="flex-1 px-1.5 py-0.5 bg-transparent border border-white/10 rounded text-[10px] text-zinc-300 focus:outline-none focus:border-white/20 min-w-0"
+                      />
+                      <span className="text-[9px] text-zinc-500 tabular-nums whitespace-nowrap">
+                        {seg.trim_in.toFixed(1)}s–{seg.trim_out.toFixed(1)}s
+                      </span>
+                      <button
+                        onClick={() => handleDeleteSegment(seg.id)}
+                        className="text-[9px] text-zinc-600 hover:text-red-400 transition-colors"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={handleAddSegment}
+                className="w-full py-1 text-[10px] bg-white/5 hover:bg-white/10 text-zinc-400 rounded border border-white/5 transition-colors"
+              >
+                + Add Segment
+              </button>
+            </div>
+
+            {/* ── Duplicate ── */}
+            <div>
+              <button
+                onClick={handleDuplicate}
+                className="w-full py-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-zinc-400 rounded border border-white/5 transition-colors"
+              >
+                Duplicate Clip
+              </button>
             </div>
 
             {/* ── Colour Grade toggle ── */}
