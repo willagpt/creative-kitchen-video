@@ -467,7 +467,7 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
                   onClick={async () => {
                     const map = await loadClipsFolder();
                     setLocalFileMap(map);
-                    toast('success', `Loaded ${map.size / 2} video files`);
+                    (() => { const n = Math.floor(map.size / 2); n > 0 ? toast('success', `Loaded ${n} video files`) : toast('error', 'No video files found — select the folder with your .mov/.mp4 files'); })();
                   }}
                   className="px-4 py-1.5 text-[11px] bg-emerald-600/80 hover:bg-emerald-500 text-white rounded-lg transition-colors"
                 >
@@ -493,7 +493,7 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
                     onClick={async () => {
                       const map = await loadClipsFolder();
                       setLocalFileMap(map);
-                      toast('success', `Loaded ${map.size / 2} video files`);
+                      (() => { const n = Math.floor(map.size / 2); n > 0 ? toast('success', `Loaded ${n} video files`) : toast('error', 'No video files found — select the folder with your .mov/.mp4 files'); })();
                     }}
                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors"
                   >

@@ -8,9 +8,59 @@
 const localFileMap = new Map<string, string>(); // basename -> blob URL
 let directoryHandle: FileSystemDirectoryHandle | null = null;
 
+// Video extensions we recognize (case-insensitive)
+const VIDEO_EXTENSIONS = /\.(mp4|mov|avi|mkv|webm|m4v|mxf|prores|ts|mts|3gp|wmv|flv)$/i;
+
+/**
+ * Check if a file is a video file.
+ * Checks both MIME type and extension since macOS often returns empty MIME for .mov files.
+ */
+function isVideoFile(file: File): boolean {
+  if (file.type && file.type.startsWith('video/')) return true;
+  if (file.type === 'application/mxf') return true;
+  if (VIDEO_EXTENSIONS.test(file.name)) return true;
+  return false;
+}
+
+/**
+ * Recursively scan a directory handle for video files.
+ */
+async function scanDirectory(
+  handle: FileSystemDirectoryHandle,
+  map: Map<string, string>,
+  depth = 0
+): Promise<void> {
+  // Safety: don't recurse more than 5 levels deep
+  if (depth > 5) return;
+
+  // @ts-expect-error — async iterator on FileSystemDirectoryHandle
+  for await (const entry of handle.values()) {
+    if (entry.kind === 'file') {
+      try {
+        const file: File = await entry.getFile();
+        if (isVideoFile(file)) {
+          const blobUrl = URL.createObjectURL(file);
+          const baseName = file.name.replace(/\.[^.]+$/, '');
+          map.set(baseName, blobUrl);
+          map.set(file.name, blobUrl);
+        }
+      } catch (err) {
+        console.warn(`Skipped file ${entry.name}:`, err);
+      }
+    } else if (entry.kind === 'directory') {
+      // Recurse into subdirectories
+      try {
+        await scanDirectory(entry as FileSystemDirectoryHandle, map, depth + 1);
+      } catch (err) {
+        console.warn(`Skipped directory ${entry.name}:`, err);
+      }
+    }
+  }
+}
+
 /**
  * Prompt user to pick a folder containing video clips.
- * Scans all video files and creates object URLs for playback.
+ * Recursively scans all video files and creates object URLs for playback.
  * Returns a map of basename -> blob URL.
  */
 export async function loadClipsFolder(): Promise<Map<string, string>> {
@@ -25,24 +75,21 @@ export async function loadClipsFolder(): Promise<Map<string, string>> {
     }
     localFileMap.clear();
 
-    // Scan all files in the directory
-    // @ts-expect-error — async iterator
-    for await (const entry of directoryHandle.values()) {
-      if (entry.kind === 'file') {
-        const file: File = await entry.getFile();
-        const isVideo = file.type.startsWith('video/') ||
-          file.name.match(/\.(mp4|mov|avi|mkv|webm|m4v)$/i);
+    // Recursively scan all files in the directory tree
+    await scanDirectory(directoryHandle, localFileMap);
 
-        if (isVideo) {
-          const blobUrl = URL.createObjectURL(file);
-          const baseName = file.name.replace(/\.[^.]+$/, '');
-          localFileMap.set(baseName, blobUrl);
-          localFileMap.set(file.name, blobUrl);
-        }
-      }
+    const fileCount = Math.floor(localFileMap.size / 2);
+    console.log(`[CK] Loaded ${fileCount} video files from local folder`);
+
+    // Log some sample entries for debugging
+    let shown = 0;
+    for (const [key] of localFileMap.entries()) {
+      if (shown >= 10) break;
+      if (!key.includes('.')) continue; // only show full filenames
+      console.log(`  [CK] File: ${key}`);
+      shown++;
     }
 
-    console.log(`Loaded ${localFileMap.size / 2} video files from local folder`);
     return new Map(localFileMap);
   } catch (err) {
     if ((err as Error).name === 'AbortError') {
@@ -84,9 +131,11 @@ export async function loadMusicFolder(): Promise<Map<string, string>> {
 
 /**
  * Resolve a clip name to a local blob URL for playback.
- * Tries exact name, then basename matching.
+ * Tries exact name, then basename matching, then fuzzy matching.
  */
 export function resolveLocalVideo(clipName: string, fileMap: Map<string, string>): string | null {
+  if (!clipName || fileMap.size === 0) return null;
+
   // Try exact match
   if (fileMap.has(clipName)) return fileMap.get(clipName)!;
 
@@ -94,10 +143,19 @@ export function resolveLocalVideo(clipName: string, fileMap: Map<string, string>
   const baseName = clipName.replace(/\.[^.]+$/, '');
   if (fileMap.has(baseName)) return fileMap.get(baseName)!;
 
+  // Try case-insensitive exact match
+  const lowerName = clipName.toLowerCase();
+  const lowerBase = baseName.toLowerCase();
+  for (const [key, url] of fileMap.entries()) {
+    if (key.toLowerCase() === lowerName || key.toLowerCase() === lowerBase) {
+      return url;
+    }
+  }
+
   // Try partial match — clip name might be a substring of file name or vice versa
   for (const [key, url] of fileMap.entries()) {
-    const keyBase = key.replace(/\.[^.]+$/, '');
-    if (keyBase.includes(baseName) || baseName.includes(keyBase)) {
+    const keyBase = key.replace(/\.[^.]+$/, '').toLowerCase();
+    if (keyBase.includes(lowerBase) || lowerBase.includes(keyBase)) {
       return url;
     }
   }
