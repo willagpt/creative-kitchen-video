@@ -4,7 +4,7 @@ import { useStore } from '@/store';
 import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/activity';
 import { toast } from '@/components/Toast';
-import { resolveLocalVideo } from '@/lib/localFiles';
+import { resolveLocalVideo, loadClipsFolder } from '@/lib/localFiles';
 import { driveThumbUrl } from '@/lib/drive';
 
 /* ─── Constants ──────────────────────────────────────────── */
@@ -72,7 +72,7 @@ interface CurateDetailProps {
 
 /* ─── Component ──────────────────────────────────────────── */
 export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetailProps) {
-  const { updateClip, user, workspace, localFileMap, videoFileMap, thumbnailMap } = useStore();
+  const { updateClip, user, workspace, localFileMap, setLocalFileMap, videoFileMap, thumbnailMap } = useStore();
 
   /* ── Video player refs / state ── */
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -437,12 +437,15 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
           {/* Video player */}
           <div className="flex-1 flex items-center justify-center bg-black p-4 min-h-0 relative">
             {localSrc ? (
+              /* ── Local video playback ── */
               <video
                 ref={videoRef}
-                key={clip.id}
+                key={`vid-${clip.id}`}
                 src={localSrc}
                 controls
                 playsInline
+                autoPlay
+                poster={thumbSrc || undefined}
                 className="max-w-full max-h-full object-contain rounded"
                 style={{
                   filter: filterStyle,
@@ -451,17 +454,56 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
                 preload="auto"
               />
             ) : driveId ? (
-              <iframe
-                key={clip.id}
-                src={`https://drive.google.com/file/d/${driveId}/preview`}
-                className="w-full h-full max-w-3xl rounded"
-                allow="autoplay"
-                allowFullScreen
-              />
-            ) : thumbSrc ? (
-              <img src={thumbSrc} alt={clip.name} className="max-w-full max-h-full object-contain rounded" />
+              /* ── Drive video fallback ── */
+              <div className="flex flex-col items-center gap-3 w-full h-full">
+                <iframe
+                  key={clip.id}
+                  src={`https://drive.google.com/file/d/${driveId}/preview`}
+                  className="flex-1 w-full max-w-3xl rounded"
+                  allow="autoplay"
+                  allowFullScreen
+                />
+                <button
+                  onClick={async () => {
+                    const map = await loadClipsFolder();
+                    setLocalFileMap(map);
+                    toast('success', `Loaded ${map.size / 2} video files`);
+                  }}
+                  className="px-4 py-1.5 text-[11px] bg-emerald-600/80 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+                >
+                  Load local files for full editing
+                </button>
+              </div>
             ) : (
-              <div className="text-zinc-600 text-sm">{clip.name}</div>
+              /* ── No video source: show thumbnail + load prompt ── */
+              <div className="flex flex-col items-center justify-center gap-4 max-w-lg text-center">
+                {thumbSrc ? (
+                  <img src={thumbSrc} alt={clip.name} className="max-w-full max-h-[50vh] object-contain rounded opacity-60" />
+                ) : (
+                  <div className="w-64 h-36 bg-zinc-900 rounded-lg flex items-center justify-center border border-white/10">
+                    <span className="text-zinc-600 text-sm truncate px-4">{clip.name}</span>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <p className="text-sm text-zinc-400">
+                    Load your local video files for playback & editing
+                  </p>
+                  <button
+                    onClick={async () => {
+                      const map = await loadClipsFolder();
+                      setLocalFileMap(map);
+                      toast('success', `Loaded ${map.size / 2} video files`);
+                    }}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Load Clips Folder
+                  </button>
+                  <p className="text-[10px] text-zinc-600">
+                    Select the folder containing your .mov/.mp4 files
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* Play status indicator — non-blocking */}

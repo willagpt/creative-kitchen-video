@@ -119,12 +119,22 @@ export function Curate() {
 
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => { /* Load clips from folder */ }}
+                onClick={async () => {
+                  const map = await loadClipsFolder();
+                  setLocalFileMap(map);
+                  toast('success', `Loaded ${map.size / 2} video files`);
+                }}
                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition-colors"
               >
                 Select Clips Folder
               </button>
-              <button className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg transition-colors">
+              <button
+                onClick={async () => {
+                  const map = await loadMusicFolder();
+                  toast('success', `Loaded ${map.size} music files`);
+                }}
+                className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold rounded-lg transition-colors"
+              >
                 Select Music Folder
               </button>
             </div>
