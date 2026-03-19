@@ -168,7 +168,10 @@ export function Perf() {
             <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
               Performance Legend
             </h3>
-            <button className="text-xs border border-zinc-700 rounded-md px-3 py-1.5 text-zinc-300 hover:border-zinc-600 transition-colors">
+            <button
+              onClick={() => alert('Export Report feature coming soon — will export performance data as CSV/PDF.')}
+              className="text-xs border border-zinc-700 rounded-md px-3 py-1.5 text-zinc-300 hover:border-zinc-600 transition-colors"
+            >
               Export Report
             </button>
           </div>

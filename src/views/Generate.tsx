@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store';
+import { toast } from '@/components/Toast';
 
 interface StrategyOption {
   id: string;
@@ -7,7 +9,9 @@ interface StrategyOption {
 }
 
 export function Generate() {
+  const navigate = useNavigate();
   const { clips, setActiveTab, reiterateContext, setReiterateContext } = useStore();
+  const [generating, setGenerating] = useState(false);
 
   // Static demo data
   const personas: StrategyOption[] = [
@@ -264,11 +268,26 @@ export function Generate() {
           </div>
         </div>
 
-        {/* GENERATE BUTTON — blue/indigo like V1, not purple */}
+        {/* GENERATE BUTTON */}
         <div className="px-5 py-5">
-          <button className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-base font-bold transition-colors">
-            Generate 5 Variations
+          <button
+            onClick={async () => {
+              setGenerating(true);
+              toast('info', 'Generating 5 variations...');
+              // Simulate generation delay, then navigate to Review
+              await new Promise(r => setTimeout(r, 2000));
+              toast('success', '5 variations generated! Redirecting to Review...');
+              setGenerating(false);
+              navigate('/review');
+            }}
+            disabled={generating || clips.filter(c => c.approved).length === 0}
+            className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-base font-bold transition-colors"
+          >
+            {generating ? 'Generating...' : 'Generate 5 Variations'}
           </button>
+          {clips.filter(c => c.approved).length === 0 && (
+            <p className="text-[10px] text-amber-500 text-center mt-2">Approve clips in Curate first</p>
+          )}
         </div>
       </div>
 

@@ -311,10 +311,24 @@ export function Recipes() {
 
                 {/* EXPORT SECTION */}
                 <div className="space-y-2">
-                  <button className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors">
+                  <button
+                    onClick={() => {
+                      const json = JSON.stringify({ name: recipeName, format: recipeFormat, ratios: selectedRatios, shots: shots.map(s => ({ type: s.type, duration: s.duration })) }, null, 2);
+                      const blob = new Blob([json], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a'); a.href = url; a.download = `${recipeName.replace(/\s+/g, '_')}.json`; a.click(); URL.revokeObjectURL(url);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors"
+                  >
                     Export JSON
                   </button>
-                  <button className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors">
+                  <button
+                    onClick={() => {
+                      const json = JSON.stringify({ name: recipeName, format: recipeFormat, ratios: selectedRatios, shots: shots.map(s => ({ type: s.type, duration: s.duration })) }, null, 2);
+                      navigator.clipboard.writeText(json);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors"
+                  >
                     Copy JSON
                   </button>
                 </div>
@@ -341,6 +355,7 @@ export function Recipes() {
 
                     <button
                       disabled={curatedClips.length === 0}
+                      onClick={() => alert(`Rendering ${selectedRatios.length} video(s) in ${selectedRatios.join(', ')} formats.\n\nThis would use FFmpeg.wasm to render the recipe with curated clips.\n\nFeature coming soon.`)}
                       className="w-full px-3 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
                     >
                       Render {selectedRatios.length > 1 ? `${selectedRatios.length} Videos` : 'Video'} ({selectedRatios.join(' + ')})

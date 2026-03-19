@@ -810,29 +810,42 @@ export function Curate() {
             </div>
             <div className="p-4 space-y-4">
               {/* Video player area */}
-              <div className="space-y-2">
-                <div className="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center border border-zinc-800">
-                  {firstPendingClip.drive_file_id ? (
-                    <iframe
-                      src={`https://drive.google.com/file/d/${firstPendingClip.drive_file_id}/preview`}
-                      className="w-full h-full"
-                      allow="autoplay"
-                      allowFullScreen
-                    />
-                  ) : firstPendingClip.thumbnail_url || firstPendingClip.drive_file_id ? (
-                    <img
-                      src={firstPendingClip.thumbnail_url || driveThumbUrl(firstPendingClip.drive_file_id!)}
-                      alt={firstPendingClip.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-zinc-600 text-sm">
-                      {firstPendingClip.name}
+              {(() => {
+                // Resolve Drive file ID from clip or thumbnailMap
+                const driveId = firstPendingClip.drive_file_id || (() => {
+                  const base = firstPendingClip.name.replace(/\.[^.]+$/, '');
+                  for (const [k, v] of thumbnailMap.entries()) {
+                    if (k.startsWith(base)) return v;
+                  }
+                  return null;
+                })();
+                return (
+                  <div className="space-y-2">
+                    <div className="bg-black rounded-lg overflow-hidden aspect-video border border-zinc-800">
+                      {driveId ? (
+                        <iframe
+                          key={firstPendingClip.id}
+                          src={`https://drive.google.com/file/d/${driveId}/preview`}
+                          className="w-full h-full"
+                          allow="autoplay"
+                          allowFullScreen
+                        />
+                      ) : firstPendingClip.thumbnail_url ? (
+                        <img
+                          src={firstPendingClip.thumbnail_url}
+                          alt={firstPendingClip.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-600 text-sm">
+                          {firstPendingClip.name}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <p className="text-xs text-zinc-500 text-center">Click anywhere to annotate · Space to play/pause</p>
-              </div>
+                    <p className="text-xs text-zinc-500 text-center">Click anywhere to annotate · Space to play/pause</p>
+                  </div>
+                );
+              })()}
 
               {/* Clip info */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
