@@ -55,8 +55,10 @@ interface AppState {
   columnCount: number;
   setColumnCount: (count: number) => void;
 
-  // Fetch clips from Supabase
+  // Clip operations
   fetchClips: (workspaceId: string) => Promise<void>;
+  deleteClips: (ids: number[]) => Promise<void>;
+  archiveClips: (ids: number[]) => Promise<void>;
 
   // Performance feedback for re-iteration
   reiterateContext: {
@@ -154,6 +156,40 @@ export const useStore = create<AppState>((set) => ({
     } catch (err) {
       console.error('Failed to fetch clips:', err);
       set({ loading: false });
+    }
+  },
+
+  deleteClips: async (ids: number[]) => {
+    try {
+      const { error } = await supabase
+        .from('clips')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+      set((state) => ({
+        clips: state.clips.filter((c) => !ids.includes(c.id)),
+        selectedClips: new Set(),
+      }));
+    } catch (err) {
+      console.error('Failed to delete clips:', err);
+    }
+  },
+
+  archiveClips: async (ids: number[]) => {
+    try {
+      const { error } = await supabase
+        .from('clips')
+        .update({ archived: true })
+        .in('id', ids);
+      if (error) throw error;
+      set((state) => ({
+        clips: state.clips.map((c) =>
+          ids.includes(c.id) ? { ...c, archived: true } : c
+        ),
+        selectedClips: new Set(),
+      }));
+    } catch (err) {
+      console.error('Failed to archive clips:', err);
     }
   },
 

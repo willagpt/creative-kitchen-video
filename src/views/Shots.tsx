@@ -18,6 +18,8 @@ export function Shots() {
     selectedClips,
     clearSelection,
     updateClip,
+    deleteClips,
+    archiveClips,
   } = useStore();
 
   // Filter state
@@ -294,10 +296,16 @@ export function Shots() {
               >
                 Clear
               </button>
-              <button className="px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded">
+              <button
+                onClick={() => archiveClips(Array.from(selectedClips))}
+                className="px-2 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded"
+              >
                 Archive
               </button>
-              <button className="px-2 py-1 text-[10px] bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded">
+              <button
+                onClick={() => { if (confirm(`Delete ${selectedClips.size} clip(s)? This cannot be undone.`)) deleteClips(Array.from(selectedClips)); }}
+                className="px-2 py-1 text-[10px] bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded"
+              >
                 Delete
               </button>
               <div className="w-px h-4 bg-zinc-700" />
