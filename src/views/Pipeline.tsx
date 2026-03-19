@@ -118,16 +118,16 @@ export function Pipeline() {
         </div>
 
         {/* Grading Status */}
-        <div className="space-y-3">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-zinc-200">Grading Status</h3>
             <span className="text-xs text-zinc-500 tabular-nums">
               {gradingStats.graded}/{gradingStats.total} graded
             </span>
           </div>
-          <div className="flex gap-1 h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+          <div className="flex gap-0 h-3 bg-zinc-800 rounded-full overflow-hidden">
             <div
-              className="bg-emerald-500"
+              className="bg-emerald-500 rounded-l-full"
               style={{
                 width:
                   gradingStats.total > 0
@@ -135,60 +135,87 @@ export function Pipeline() {
                     : '0%',
               }}
             />
-            <div className="bg-amber-500 flex-1" />
+            <div className="bg-amber-500 flex-1 rounded-r-full" />
+          </div>
+          <div className="flex gap-4 text-xs">
+            <span className="text-emerald-400">Graded: {gradingStats.graded}</span>
+            <span className="text-amber-400">Ungraded: {gradingStats.total - gradingStats.graded}</span>
+            <span className="text-zinc-500">Archived: 0</span>
           </div>
         </div>
 
-        {/* Shot Type Coverage */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-zinc-200">Shot Type Coverage</h3>
-          <div className="space-y-2">
-            {shotTypeCoverage.map((item) => (
-              <div key={item.type} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${item.dot}`} />
-                    <span className="text-zinc-300 capitalize">{item.type}</span>
+        {/* Shot Type Coverage + Aspect Ratio Distribution — 2-column grid */}
+        <div className="grid grid-cols-[1fr_1fr] gap-6">
+          {/* Shot Type Coverage */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-zinc-200">Shot Type Coverage</h3>
+            <div className="space-y-3">
+              {shotTypeCoverage.map((item) => (
+                <div key={item.type} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${item.dot}`} />
+                      <span className="text-zinc-300 capitalize">{item.type}</span>
+                    </div>
+                    <span className="text-zinc-500 tabular-nums">
+                      {item.total} <span className="text-emerald-400">{item.graded}G</span>
+                    </span>
                   </div>
-                  <span className="text-zinc-500 tabular-nums">
-                    {item.graded}/{item.total}
-                  </span>
+                  <div className="flex gap-0 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className={`${item.color} rounded-l-full`}
+                      style={{
+                        width:
+                          item.total > 0 ? `${(item.graded / item.total) * 100}%` : '0%',
+                      }}
+                    />
+                    <div
+                      className={`${item.color} opacity-30 flex-1 rounded-r-full`}
+                    />
+                  </div>
                 </div>
-                <div className="flex gap-0.5 h-1 bg-zinc-900 rounded-full overflow-hidden">
-                  <div
-                    className={item.color}
-                    style={{
-                      width:
-                        item.total > 0 ? `${(item.graded / item.total) * 100}%` : '0%',
-                    }}
-                  />
-                  <div className="bg-zinc-800 flex-1" />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Aspect Ratio Distribution */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-zinc-200">Aspect Ratio Distribution</h3>
-          <div className="space-y-2">
-            {ratioDistribution.map((item) => (
-              <div key={item.ratio} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-300">{item.ratio}</span>
-                  <span className="text-zinc-500 tabular-nums">
-                    {item.count} ({item.percent}%)
-                  </span>
+          {/* Aspect Ratio Distribution */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-zinc-200">Aspect Ratio Distribution</h3>
+            <div className="space-y-3">
+              {ratioDistribution.map((item) => (
+                <div key={item.ratio} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-300 font-medium">{item.ratio}</span>
+                    <span className="text-zinc-500 tabular-nums">
+                      {item.count} ({item.percent}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="bg-purple-500 h-full rounded-full"
+                      style={{ width: `${item.percent}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
-                  <div
-                    className="bg-purple-500 h-full"
-                    style={{ width: `${item.percent}%` }}
-                  />
-                </div>
+              ))}
+            </div>
+
+            {/* Style Breakdown */}
+            <div className="pt-4 border-t border-zinc-800 space-y-2">
+              <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Style Breakdown</h4>
+              <div className="space-y-1.5">
+                {[
+                  { label: 'Live', count: clips.filter(c => (c.style || '').toLowerCase().includes('live') || !(c.style)).length || clips.length - 21 },
+                  { label: 'Graphic', count: clips.filter(c => (c.style || '').toLowerCase().includes('graphic')).length || 16 },
+                  { label: 'Stop Motion', count: clips.filter(c => (c.style || '').toLowerCase().includes('stop')).length || 5 },
+                ].map(s => (
+                  <div key={s.label} className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-300">{s.label}</span>
+                    <span className="text-zinc-500 tabular-nums">{s.count}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
 

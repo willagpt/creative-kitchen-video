@@ -134,62 +134,57 @@ export function Generate() {
 
         {/* CONTROLS */}
         <div className="p-4 space-y-4 border-b border-zinc-800">
-          <div>
-            <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-              Brand Prefix
-            </label>
-            <input
-              type="text"
-              value={brandPrefix}
-              onChange={(e) => setBrandPrefix(e.target.value)}
-              className="mt-1 w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-purple-500"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-              Ratio
-            </label>
-            <select
-              value={selectedRatio}
-              onChange={(e) => setSelectedRatio(e.target.value)}
-              className="mt-1 w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-100 focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer"
-            >
-              {ratios.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="flex gap-2">
+            <div className="flex-1">
               <input
-                type="checkbox"
-                checked={curatedOnly}
-                onChange={(e) => setCuratedOnly(e.target.checked)}
-                className="w-4 h-4 rounded border border-zinc-600 bg-zinc-800 cursor-pointer"
+                type="text"
+                value={brandPrefix}
+                onChange={(e) => setBrandPrefix(e.target.value)}
+                className="w-full h-8 px-2 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-purple-500"
               />
+            </div>
+            <div className="flex-1">
+              <select
+                value={selectedRatio}
+                onChange={(e) => setSelectedRatio(e.target.value)}
+                className="w-full h-8 px-2 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                {ratios.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-[11px] text-zinc-300">Curated only</span>
+              <button
+                onClick={() => setCuratedOnly(!curatedOnly)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${curatedOnly ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${curatedOnly ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
             </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={gradedOnly}
-                onChange={(e) => setGradedOnly(e.target.checked)}
-                className="w-4 h-4 rounded border border-zinc-600 bg-zinc-800 cursor-pointer"
-              />
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-[11px] text-zinc-300">Graded only</span>
+              <button
+                onClick={() => setGradedOnly(!gradedOnly)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${gradedOnly ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${gradedOnly ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
             </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useMusic}
-                onChange={(e) => setUseMusic(e.target.checked)}
-                className="w-4 h-4 rounded border border-zinc-600 bg-zinc-800 cursor-pointer"
-              />
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-[11px] text-zinc-300">Music</span>
+              <button
+                onClick={() => setUseMusic(!useMusic)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${useMusic ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${useMusic ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
             </label>
           </div>
 
@@ -216,32 +211,48 @@ export function Generate() {
           <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">
             Available Clips
           </h3>
-          <div className="flex gap-1.5 flex-wrap">
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-              <div className="w-2 h-2 rounded-full bg-red-400" />
-              <span>Hook: {hookCount} / {hookGradedCount}</span>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#ff6b6b]" />
+                <span className="text-zinc-300">Hook</span>
+              </div>
+              <span className="text-zinc-500 tabular-nums">{hookCount} <span className="text-zinc-600">/ {hookGradedCount}</span></span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-              <div className="w-2 h-2 rounded-full bg-indigo-500" />
-              <span>Body: {bodyCount} / {bodyGradedCount}</span>
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#6b8aff]" />
+                <span className="text-zinc-300">Body</span>
+              </div>
+              <span className="text-zinc-500 tabular-nums">{bodyCount} <span className="text-zinc-600">/ {bodyGradedCount}</span></span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-              <div className="w-2 h-2 rounded-full bg-amber-500" />
-              <span>Product: {productCount} / {productGradedCount}</span>
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#f0a030]" />
+                <span className="text-zinc-300">Product</span>
+              </div>
+              <span className="text-zinc-500 tabular-nums">{productCount} <span className="text-zinc-600">/ {productGradedCount}</span></span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-              <div className="w-2 h-2 rounded-full bg-teal-400" />
-              <span>CTA: {ctaCount} / {ctaGradedCount}</span>
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#4ecdc4]" />
+                <span className="text-zinc-300">CTA</span>
+              </div>
+              <span className="text-zinc-500 tabular-nums">{ctaCount} <span className="text-zinc-600">/ {ctaGradedCount}</span></span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] pt-1">
+              <span className="text-zinc-400">Music tracks</span>
+              <span className="text-zinc-500 tabular-nums">{musicCount}</span>
             </div>
           </div>
-          <div className="text-[10px] text-zinc-500 mt-2">
-            Music: {musicCount} tracks | Combos: ~{comboCount.toLocaleString()}
+          <div className="text-[10px] text-zinc-600 mt-2">
+            ~{comboCount.toLocaleString()} combos · ~10.3s each · 3:1 action:static
           </div>
         </div>
 
         {/* GENERATE BUTTON */}
         <div className="p-4">
-          <button className="w-full py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors">
+          <button className="w-full py-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-purple-600/20">
             Generate 5 Variations
           </button>
         </div>
