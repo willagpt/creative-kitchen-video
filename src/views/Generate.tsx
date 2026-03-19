@@ -438,8 +438,10 @@ export function Generate() {
   /* ── Truncate clip name for slot display ────────────────────────── */
   const clipLabel = (clip: Clip | null) => {
     if (!clip) return '—';
-    const name = clip.name || clip.fullname || '';
-    return name.length > 12 ? name.slice(0, 11) + '…' : name;
+    const raw = clip.name || clip.fullname || '';
+    // Strip common extensions and prefixes, keep it very short
+    const name = raw.replace(/\.(mp4|mov|webm)$/i, '').replace(/^(PGHS|IMG_|VID_)/i, '');
+    return name.length > 8 ? name.slice(0, 7) + '…' : name;
   };
 
   return (
@@ -707,17 +709,18 @@ export function Generate() {
                     </button>
 
                     {/* AIDA slots — the horizontal strip */}
-                    <div className="flex-1 flex">
+                    <div className="flex-1 flex overflow-hidden">
                       {v.slots.map((slot, si) => (
-                        <div key={si} className={`flex-1 min-w-0 border-r border-zinc-800/30 last:border-r-0`}>
+                        <div key={si} className="flex-1 min-w-0 border-r border-zinc-800/30 last:border-r-0 overflow-hidden">
                           {/* Phase + Type header */}
-                          <div className={`px-1.5 py-1 text-center ${SLOT_HEADER_BG[slot.phase]}`}>
-                            <div className="text-[8px] font-bold text-white/90 uppercase tracking-wider">{slot.phase}</div>
-                            <div className="text-[7px] text-white/60 uppercase">{slot.type}</div>
+                          <div className={`px-0.5 py-1 text-center ${SLOT_HEADER_BG[slot.phase]}`}>
+                            <div className="text-[7px] font-bold text-white/90 uppercase leading-none">{slot.phase}</div>
+                            <div className="text-[6px] text-white/50 uppercase leading-tight mt-0.5">{slot.type}</div>
                           </div>
                           {/* Clip name */}
-                          <div className={`px-1.5 py-2 text-center ${SLOT_BG[slot.type]}`}>
-                            <div className="text-[9px] text-white/80 font-medium truncate">
+                          <div className={`px-0.5 py-2 text-center ${SLOT_BG[slot.type]} overflow-hidden`}
+                            title={slot.clip?.name || ''}>
+                            <div className="text-[8px] text-white/80 font-medium overflow-hidden text-ellipsis whitespace-nowrap">
                               {clipLabel(slot.clip)}
                             </div>
                           </div>
@@ -727,9 +730,9 @@ export function Generate() {
                   </div>
 
                   {/* Text overlays strip */}
-                  <div className="px-3 py-2 flex gap-2 overflow-x-auto border-t border-zinc-800/30">
+                  <div className="px-2 py-1.5 flex gap-1.5 overflow-x-auto border-t border-zinc-800/30 scrollbar-none">
                     {v.overlays.slice(0, 6).map((overlay, oi) => (
-                      <span key={oi} className="flex-shrink-0 text-[9px] px-2 py-0.5 rounded bg-zinc-800/60 text-zinc-400 border border-zinc-700/40 truncate max-w-[140px]">
+                      <span key={oi} className="flex-shrink-0 text-[8px] px-1.5 py-0.5 rounded bg-zinc-800/60 text-zinc-400 border border-zinc-700/40 whitespace-nowrap max-w-[120px] overflow-hidden text-ellipsis">
                         &quot;{overlay.text}&quot;
                       </span>
                     ))}
