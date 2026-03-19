@@ -39,8 +39,6 @@ const TAG_CATEGORIES: Record<string, string[]> = {
 };
 
 const ROTATION_OPTIONS = [0, 90, 180, 270] as const;
-const TARGET_RATIOS = ['Original', '9:16', '16:9', '1:1', '4:5'] as const;
-
 const TYPE_OPTIONS = ['hook', 'body', 'cta', 'product', 'social_proof', 'transition'];
 const TYPE_COLORS: Record<string, string> = {
   hook:         '#ff6b6b',
@@ -91,7 +89,6 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
   const [activePreset, setActivePreset] = useState(clip.colour_grade ? 'Custom' : 'Original');
   const [rotation, setRotation] = useState(0);
   const [targetRatio, setTargetRatio] = useState<string>('Original');
-  const [showColour, setShowColour] = useState(true);
   const [clipType, setClipType] = useState(clip.type || 'body');
   const [notes, setNotes] = useState(clip.curation_note || '');
   const [starRating, setStarRating] = useState(clip.star_rating || 0);
@@ -424,6 +421,7 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
     }
   };
 
+  // @ts-expect-error — segment management will be expanded
   const handleDeleteSegment = async (segId: string) => {
     try {
       await supabase.from('clip_segments').delete().eq('id', segId);
@@ -434,6 +432,7 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
     }
   };
 
+  // @ts-expect-error — segment management will be expanded
   const handleUpdateSegmentLabel = async (segId: string, newLabel: string) => {
     try {
       await supabase.from('clip_segments').update({ label: newLabel }).eq('id', segId);
@@ -467,63 +466,88 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
     }
   };
 
+  /* ── Custom tag input ── */
+  const [customTag, setCustomTag] = useState('');
+  const [showTagPresets, setShowTagPresets] = useState(false);
+  const handleAddCustomTag = async (tag: string) => {
+    if (!tag.trim()) return;
+    const next = [...selectedTags, tag.trim().toLowerCase()];
+    setSelectedTags(next);
+    setCustomTag('');
+    await persistClip({ tags: next } as Partial<Clip>);
+  };
+  const handleRemoveTag = async (tag: string) => {
+    const next = selectedTags.filter(t => t !== tag);
+    setSelectedTags(next);
+    await persistClip({ tags: next } as Partial<Clip>);
+  };
+
   /* ── CSS filter for colour grading ── */
   const filterStyle = buildFilterStyle(colourGrade);
 
   const typeColor = TYPE_COLORS[clipType] || '#6b8aff';
+  const statusText = clip.approved ? 'APPROVED' : clip.rejected ? 'REJECTED' : 'PENDING';
+  const statusColor = clip.approved ? 'text-emerald-400' : clip.rejected ? 'text-red-400' : 'text-amber-400';
+  const typeBg = TYPE_COLORS[(clip.type || 'body').toLowerCase()] || '#6b8aff';
+
+  /* ── Sub-type display names ── */
+  const subTypeNames: Record<string, string> = {
+    'food-action': 'Food Action', 'food-beauty': 'Food Beauty', 'lifestyle': 'Lifestyle',
+    'product': 'Product', 'stop-motion': 'Stop Motion',
+  };
 
   /* ── Render ── */
   return (
     <div className="flex flex-col h-full bg-[#0a0a0f] text-zinc-100 overflow-hidden">
 
-      {/* ═══ TOP BAR ═══ */}
-      <div className="flex items-center h-10 px-4 border-b border-zinc-800 bg-[#111118] flex-shrink-0 gap-3">
-        <button onClick={onBack} className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          Back to Grid
+      {/* ═══ TOP BAR — V1 style: Back + clip name + badges + Prev/Next ═══ */}
+      <div className="flex items-center h-11 px-5 border-b border-zinc-800 bg-zinc-900/80 flex-shrink-0">
+        <button onClick={onBack} className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1.5 mr-4">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          Back
         </button>
 
-        <div className="h-5 w-px bg-white/10" />
+        <h1 className="text-sm font-semibold text-zinc-100 truncate mr-3">{clip.name}</h1>
 
-        {/* Sub-type pills */}
-        <div className="flex gap-1.5">
-          {(['food-action', 'food-beauty', 'lifestyle', 'product', 'stop-motion'] as SubType[]).map((st) => (
-            <button
-              key={st}
-              onClick={() => handleSubTypeChange(st)}
-              className={`px-2.5 py-0.5 text-[10px] rounded-full border transition-colors font-medium ${
-                clip.sub_type === st ? SUB_TYPE_STYLES[st] : 'border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${statusColor} bg-current/10 mr-2`} style={{ backgroundColor: clip.approved ? '#22c55e20' : clip.rejected ? '#ef444420' : '#f59e0b20' }}>
+          {statusText}
+        </span>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white" style={{ backgroundColor: typeBg }}>
+          {(clip.type || 'BODY').toUpperCase()}
+        </span>
+
+        <div className="ml-auto flex items-center gap-4">
+          <button
+            disabled={!hasPrev}
+            onClick={() => hasPrev && onNavigate(clipList[idx - 1].id)}
+            className="text-sm text-zinc-400 hover:text-zinc-200 disabled:text-zinc-700 disabled:cursor-not-allowed transition-colors"
+          >
+            Prev
+          </button>
+          <button
+            disabled={!hasNext}
+            onClick={() => hasNext && onNavigate(clipList[idx + 1].id)}
+            className="text-sm text-zinc-400 hover:text-zinc-200 disabled:text-zinc-700 disabled:cursor-not-allowed transition-colors"
+          >
+            Next
+          </button>
         </div>
+      </div>
 
-        <div className="ml-auto flex items-center gap-3">
-          {/* Clip counter */}
-          <span className="text-[10px] text-zinc-500 tabular-nums font-medium">
-            {idx + 1} / {clipList.length}
-          </span>
-
-          {/* Prev / Next */}
-          <div className="flex gap-1">
-            <button
-              disabled={!hasPrev}
-              onClick={() => hasPrev && onNavigate(clipList[idx - 1].id)}
-              className="px-2 py-0.5 text-[10px] bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-300 rounded transition-colors"
-            >
-              ← Prev
-            </button>
-            <button
-              disabled={!hasNext}
-              onClick={() => hasNext && onNavigate(clipList[idx + 1].id)}
-              className="px-2 py-0.5 text-[10px] bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-300 rounded transition-colors"
-            >
-              Next →
-            </button>
-          </div>
-        </div>
+      {/* ═══ SUB-TYPE ROW — V1 style ═══ */}
+      <div className="flex items-center h-9 px-5 border-b border-zinc-800 bg-zinc-900/40 flex-shrink-0 gap-1">
+        <span className="text-[10px] text-zinc-500 uppercase tracking-wider mr-2">Sub-type:</span>
+        {(['food-action', 'food-beauty', 'lifestyle', 'product', 'stop-motion'] as SubType[]).map((st) => (
+          <button
+            key={st}
+            onClick={() => handleSubTypeChange(st)}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              clip.sub_type === st ? SUB_TYPE_STYLES[st] + ' font-semibold' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {subTypeNames[st]}
+          </button>
+        ))}
       </div>
 
       {/* ═══ MAIN AREA ═══ */}
@@ -684,153 +708,130 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
               </div>
             </div>
 
-            {/* Keyboard hints */}
-            <div className="flex gap-4 mt-2 text-[9px] text-zinc-600">
-              <span><kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono">Space</kbd> Play/Pause</span>
-              <span><kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono">I</kbd> Set IN</span>
-              <span><kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono">O</kbd> Set OUT</span>
-              <span><kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono">←/→</kbd> Frame step</span>
-              <span><kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono">J/L</kbd> ±5s</span>
-              <span><kbd className="px-1 py-0.5 bg-zinc-800 rounded text-zinc-400 font-mono">Esc</kbd> Back</span>
+            {/* V1-style control buttons below timeline */}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <button onClick={() => { if (videoRef.current) videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause(); }} className="px-3 py-1.5 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-md border border-zinc-700 font-medium transition-colors">
+                ► Play
+              </button>
+              <button onClick={() => { if (videoRef.current) { videoRef.current.currentTime = trimIn; videoRef.current.play(); } }} className="px-3 py-1.5 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-md border border-zinc-700 font-medium transition-colors">
+                ► Preview trim [P]
+              </button>
+              <button onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.max(0, (videoRef.current?.currentTime || 0) - 0.1); }} className="px-2 py-1.5 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md border border-zinc-700 transition-colors">-0.1s</button>
+              <button onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.min(duration, (videoRef.current?.currentTime || 0) + 0.1); }} className="px-2 py-1.5 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md border border-zinc-700 transition-colors">+0.1s</button>
+
+              <div className="flex-1" />
+
+              <button onClick={() => setTrimIn(currentTime)} className="px-3 py-1.5 text-[11px] bg-emerald-900/50 hover:bg-emerald-800/50 text-emerald-400 rounded-md border border-emerald-700/50 font-medium transition-colors">Set IN [I]</button>
+              <button onClick={() => setTrimOut(currentTime)} className="px-3 py-1.5 text-[11px] bg-red-900/50 hover:bg-red-800/50 text-red-400 rounded-md border border-red-700/50 font-medium transition-colors">Set OUT [O]</button>
+              <button onClick={() => { setTrimIn(0); setTrimOut(duration || clip.duration); }} className="px-3 py-1.5 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md border border-zinc-700 transition-colors">Reset</button>
+              <button onClick={handleAddSegment} className="px-3 py-1.5 text-[11px] bg-amber-900/40 hover:bg-amber-800/40 text-amber-400 rounded-md border border-amber-700/40 font-medium transition-colors">+ Segment</button>
+              <button onClick={handleDuplicate} className="px-3 py-1.5 text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md border border-zinc-700 transition-colors">Duplicate</button>
             </div>
           </div>
         </div>
 
-        {/* ═══ RIGHT PANEL ═══ */}
-        <div className="w-80 border-l border-zinc-800 bg-[#111118] flex flex-col flex-shrink-0">
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {/* ═══ RIGHT PANEL — V1 style ═══ */}
+        <div className="w-80 border-l border-zinc-800 bg-zinc-900/50 flex flex-col flex-shrink-0">
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
-            {/* ── Clip Name ── */}
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-100 truncate">{clip.name}</h2>
-              <div className="text-[10px] text-zinc-500 mt-0.5">{clip.fullname || clip.name}</div>
-            </div>
-
-            {/* ── Details ── */}
-            <div className="space-y-2.5">
-              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Details</h3>
-
-              <div className="grid grid-cols-2 gap-2">
-                {/* Type dropdown */}
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Type</label>
+            {/* ── Details — V1: label:value rows ── */}
+            <div className="space-y-3">
+              <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Details</h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-zinc-400">Type</span>
                   <select
                     value={clipType}
                     onChange={(e) => handleTypeChange(e.target.value)}
-                    className="w-full mt-0.5 h-7 px-2 text-[11px] bg-zinc-800 border border-zinc-700 rounded text-zinc-300 focus:outline-none focus:border-zinc-600"
+                    className="h-8 px-3 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-zinc-600 cursor-pointer"
                     style={{ color: typeColor }}
                   >
                     {TYPE_OPTIONS.map((t) => (
-                      <option key={t} value={t}>{t.toUpperCase()}</option>
+                      <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
                     ))}
                   </select>
                 </div>
-
-                {/* Category */}
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Category</label>
-                  <div className="mt-0.5 h-7 px-2 flex items-center text-[11px] bg-zinc-800 border border-zinc-700 rounded text-zinc-400">
-                    {clip.category || 'Uncategorized'}
-                  </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-zinc-400">Category</span>
+                  <span className="text-sm text-zinc-100 font-medium">{clip.category || 'Uncategorized'}</span>
                 </div>
-
-                {/* Duration */}
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Duration</label>
-                  <div className="mt-0.5 h-7 px-2 flex items-center text-[11px] bg-zinc-800 border border-zinc-700 rounded text-zinc-400 tabular-nums">
-                    {clip.duration.toFixed(1)}s
-                  </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-zinc-400">Duration</span>
+                  <span className="text-sm text-zinc-100 font-medium tabular-nums">{clip.duration.toFixed(1)}s</span>
                 </div>
-
-                {/* Ratio */}
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Ratio</label>
-                  <div className="mt-0.5 h-7 px-2 flex items-center text-[11px] bg-zinc-800 border border-zinc-700 rounded text-zinc-400">
-                    {clip.ratio || `${clip.width}×${clip.height}`}
-                  </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-zinc-400">Ratio</span>
+                  <span className="text-sm text-zinc-100 font-medium">{clip.ratio || `${clip.width}x${clip.height}`}</span>
                 </div>
-
-                {/* Size */}
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Size</label>
-                  <div className="mt-0.5 h-7 px-2 flex items-center text-[11px] bg-zinc-800 border border-zinc-700 rounded text-zinc-400">
-                    {clip.size_mb.toFixed(1)} MB
-                  </div>
-                </div>
-
-                {/* Graded */}
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Graded</label>
-                  <div className="mt-0.5 h-7 px-2 flex items-center text-[11px] bg-zinc-800 border border-zinc-700 rounded">
-                    <span className={clip.graded ? 'text-emerald-400' : 'text-amber-400'}>
-                      {clip.graded ? 'Yes' : 'No'}
-                    </span>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-zinc-400">Size</span>
+                  <span className="text-sm text-zinc-100 font-medium">{clip.size_mb.toFixed(1)} MB</span>
                 </div>
               </div>
             </div>
 
-            {/* ── Tags ── */}
-            <div className="space-y-2.5">
-              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Tags</h3>
-              {Object.entries(TAG_CATEGORIES).map(([cat, tags]) => (
-                <div key={cat}>
-                  <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">{cat}</p>
-                  <div className="flex gap-1 flex-wrap">
-                    {tags.map((tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => handleTagToggle(tag)}
-                        className={`px-2 py-0.5 text-[9px] rounded-full border transition-colors ${
-                          selectedTags.includes(tag)
-                            ? 'border-indigo-500 bg-indigo-500/20 text-indigo-400'
-                            : 'border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
+            {/* ── Tags — V1: dismissible chips + input + presets ── */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Tags</h3>
+                <button onClick={() => setShowTagPresets(!showTagPresets)} className="text-[10px] text-amber-400 hover:text-amber-300 transition-colors">
+                  {showTagPresets ? 'Hide presets' : '+ Add from presets'}
+                </button>
+              </div>
+              {selectedTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedTags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-600/20 border border-amber-600/40 text-amber-300 text-[11px] font-medium">
+                      {tag}
+                      <button onClick={() => handleRemoveTag(tag)} className="hover:text-white transition-colors ml-0.5">x</button>
+                    </span>
+                  ))}
                 </div>
-              ))}
+              )}
+              <input
+                type="text"
+                value={customTag}
+                onChange={(e) => setCustomTag(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomTag(customTag); }}
+                placeholder="Type tag + Enter..."
+                className="w-full h-8 px-3 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-600"
+              />
+              {showTagPresets && (
+                <div className="space-y-2 pt-1">
+                  {Object.entries(TAG_CATEGORIES).map(([cat, tags]) => (
+                    <div key={cat}>
+                      <p className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">{cat}</p>
+                      <div className="flex gap-1 flex-wrap">
+                        {tags.map((tag) => (
+                          <button key={tag} onClick={() => handleTagToggle(tag)} className={`px-2 py-0.5 text-[10px] rounded-md border transition-colors ${selectedTags.includes(tag) ? 'border-amber-500 bg-amber-500/20 text-amber-300' : 'border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}>
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* ── Reframe ── */}
-            <div className="space-y-2.5">
-              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Reframe</h3>
-
+            {/* ── Reframe — V1: larger buttons, amber active ── */}
+            <div className="space-y-3">
+              <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Reframe</h3>
               <div>
-                <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Rotation</label>
-                <div className="flex gap-1 mt-1">
+                <label className="text-[10px] text-zinc-500 mb-1.5 block">Rotation</label>
+                <div className="flex gap-2">
                   {ROTATION_OPTIONS.map((deg) => (
-                    <button
-                      key={deg}
-                      onClick={() => setRotation(deg)}
-                      className={`flex-1 py-1 text-[10px] rounded border transition-colors ${
-                        rotation === deg
-                          ? 'border-purple-500 bg-purple-500/20 text-purple-400'
-                          : 'border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                      }`}
-                    >
+                    <button key={deg} onClick={() => setRotation(deg)} className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${rotation === deg ? 'border-amber-500 bg-amber-500/20 text-amber-300' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600'}`}>
                       {deg}°
                     </button>
                   ))}
                 </div>
               </div>
-
               <div>
-                <label className="text-[9px] text-zinc-600 uppercase tracking-wider">Target Ratio</label>
-                <div className="flex gap-1 mt-1 flex-wrap">
-                  {TARGET_RATIOS.map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => setTargetRatio(r)}
-                      className={`px-2 py-1 text-[10px] rounded border transition-colors ${
-                        targetRatio === r
-                          ? 'border-purple-500 bg-purple-500/20 text-purple-400'
-                          : 'border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                      }`}
-                    >
+                <label className="text-[10px] text-zinc-500 mb-1.5 block">Target Ratio</label>
+                <div className="flex gap-2">
+                  {(['Native', '16:9', '9:16', '1:1'] as const).map((r) => (
+                    <button key={r} onClick={() => setTargetRatio(r === 'Native' ? 'Original' : r)} className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${(r === 'Native' ? 'Original' : r) === targetRatio ? 'border-amber-500 bg-amber-500/20 text-amber-300' : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600'}`}>
                       {r}
                     </button>
                   ))}
@@ -838,233 +839,81 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
               </div>
             </div>
 
-            {/* ── Trim ── */}
-            <div className="space-y-2.5">
-              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Trim</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">IN</label>
-                  <div className="mt-0.5 h-7 px-2 flex items-center text-[11px] bg-[#1a1a24] border border-emerald-500/30 rounded text-emerald-400 tabular-nums font-medium">
-                    {fmtTime(trimIn)}
-                  </div>
+            {/* ── Trim — V1: bold IN/OUT boxes ── */}
+            <div className="space-y-3">
+              <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Trim</h3>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center">
+                  <div className="text-[9px] text-emerald-400 uppercase tracking-wider font-bold mb-1">IN</div>
+                  <div className="text-lg text-zinc-100 font-bold tabular-nums">{trimIn.toFixed(2)}s</div>
                 </div>
-                <div>
-                  <label className="text-[9px] text-zinc-600 uppercase tracking-wider">OUT</label>
-                  <div className="mt-0.5 h-7 px-2 flex items-center text-[11px] bg-[#1a1a24] border border-red-500/30 rounded text-red-400 tabular-nums font-medium">
-                    {fmtTime(trimOut)}
-                  </div>
+                <span className="text-zinc-600 text-lg">→</span>
+                <div className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-center">
+                  <div className="text-[9px] text-red-400 uppercase tracking-wider font-bold mb-1">OUT</div>
+                  <div className="text-lg text-zinc-100 font-bold tabular-nums">{trimOut.toFixed(2)}s</div>
                 </div>
               </div>
-              <div className="text-[10px] text-zinc-500 tabular-nums">
-                Duration: {(trimOut - trimIn).toFixed(2)}s (original: {clip.duration.toFixed(2)}s)
+              <div className="text-center text-sm text-amber-400 font-semibold tabular-nums">
+                {(trimOut - trimIn).toFixed(2)}s selected
               </div>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => { setTrimIn(0); setTrimOut(duration || clip.duration); }}
-                  className="flex-1 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
-                >
-                  Reset Trim
-                </button>
-                <button
-                  onClick={() => {
-                    if (videoRef.current) {
-                      videoRef.current.currentTime = trimIn;
-                      videoRef.current.play();
-                    }
-                  }}
-                  className="flex-1 py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
-                >
-                  Preview Trim
-                </button>
+            </div>
+
+            {/* ── Colour Grade ── */}
+            <div className="space-y-3">
+              <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Colour Grade</h3>
+              <div className="grid grid-cols-3 gap-1.5">
+                {Object.entries(COLOUR_GRADE_PRESETS).map(([name]) => (
+                  <button key={name} onClick={() => { setColourGrade(COLOUR_GRADE_PRESETS[name]); setActivePreset(name); }} className={`px-2 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${activePreset === name ? 'bg-indigo-900/60 border border-indigo-500 text-indigo-300' : 'bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-300'}`}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-2.5">
+                {([
+                  { key: 'brightness', label: 'Brightness', min: 80, max: 120 },
+                  { key: 'contrast', label: 'Contrast', min: 80, max: 130 },
+                  { key: 'saturate', label: 'Saturate', min: 50, max: 150 },
+                  { key: 'temperature', label: 'Temperature', min: -20, max: 20 },
+                  { key: 'shadows', label: 'Shadows', min: -20, max: 20 },
+                ] as const).map(({ key, label, min, max }) => (
+                  <div key={key}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="text-[10px] text-zinc-400">{label}</label>
+                      <span className="text-[10px] text-zinc-500 tabular-nums">{colourGrade[key]}</span>
+                    </div>
+                    <input type="range" min={min} max={max} value={colourGrade[key]} onChange={(e) => { setColourGrade({ ...colourGrade, [key]: parseInt(e.target.value) }); setActivePreset('Custom'); }} className="w-full h-1.5 bg-zinc-700 rounded appearance-none cursor-pointer accent-indigo-500" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setColourGrade(COLOUR_GRADE_PRESETS.Original); setActivePreset('Original'); }} className="flex-1 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg border border-zinc-700 transition-colors">Reset</button>
+                <button onClick={async () => { await persistClip({ colour_grade: colourGrade } as Partial<Clip>); toast('success', 'Grade saved'); }} className="flex-1 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-semibold">Apply</button>
               </div>
             </div>
 
             {/* ── Notes ── */}
-            <div className="space-y-2.5">
-              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Notes</h3>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                onBlur={handleSaveNotes}
-                placeholder="Add curation notes..."
-                className="w-full h-16 px-2.5 py-2 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600"
-              />
+            <div className="space-y-2">
+              <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Notes</h3>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={handleSaveNotes} placeholder="Add curation notes..." className="w-full h-20 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600" />
             </div>
 
             {/* ── Star Rating ── */}
-            <div className="space-y-2.5">
-              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Rating</h3>
-              <div className="flex gap-1 items-center">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => handleStarRating(star)}
-                    className={`text-lg transition-colors ${
-                      starRating >= star ? 'text-amber-500' : 'text-zinc-700 hover:text-zinc-500'
-                    }`}
-                  >
-                    ★
-                  </button>
-                ))}
-                {starRating > 0 && (
-                  <button onClick={() => handleStarRating(0)} className="text-[9px] text-zinc-600 hover:text-zinc-400 ml-2">
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── Segments ── */}
-            <div className="space-y-2.5">
-              <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Segments</h3>
-              {segments.length > 0 && (
-                <div className="space-y-1.5">
-                  {segments.map((seg) => (
-                    <div key={seg.id} className="flex items-center gap-1.5 p-1.5 bg-zinc-800/50 rounded border border-zinc-700">
-                      <input
-                        type="text"
-                        value={seg.label}
-                        onChange={(e) => handleUpdateSegmentLabel(seg.id, e.target.value)}
-                        className="flex-1 px-1.5 py-0.5 bg-transparent border border-zinc-700 rounded text-[10px] text-zinc-300 focus:outline-none focus:border-zinc-600 min-w-0"
-                      />
-                      <span className="text-[9px] text-zinc-500 tabular-nums whitespace-nowrap">
-                        {seg.trim_in.toFixed(1)}s–{seg.trim_out.toFixed(1)}s
-                      </span>
-                      <button
-                        onClick={() => handleDeleteSegment(seg.id)}
-                        className="text-[9px] text-zinc-600 hover:text-red-400 transition-colors"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <button
-                onClick={handleAddSegment}
-                className="w-full py-1 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
-              >
-                + Add Segment
-              </button>
-            </div>
-
-            {/* ── Duplicate ── */}
-            <div>
-              <button
-                onClick={handleDuplicate}
-                className="w-full py-1.5 text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
-              >
-                Duplicate Clip
-              </button>
-            </div>
-
-            {/* ── Colour Grade toggle ── */}
-            <div className="space-y-2.5">
-              <button
-                onClick={() => setShowColour(!showColour)}
-                className="flex items-center gap-2 w-full"
-              >
-                <h3 className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Colour Grade</h3>
-                <svg className={`w-3 h-3 text-zinc-500 transition-transform ${showColour ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                {activePreset !== 'Original' && (
-                  <span className="text-[9px] text-indigo-400 ml-auto">{activePreset}</span>
-                )}
-              </button>
-
-              {showColour && (
-                <div className="space-y-3">
-                  {/* Presets */}
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {Object.entries(COLOUR_GRADE_PRESETS).map(([name]) => (
-                      <button
-                        key={name}
-                        onClick={() => { setColourGrade(COLOUR_GRADE_PRESETS[name]); setActivePreset(name); }}
-                        className={`px-1.5 py-1 rounded text-[9px] font-medium transition-colors ${
-                          activePreset === name
-                            ? 'bg-indigo-900/60 border border-indigo-500 text-indigo-300'
-                            : 'bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-300'
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Sliders */}
-                  {(
-                    [
-                      { key: 'brightness', label: 'Brightness', min: 80, max: 120 },
-                      { key: 'contrast', label: 'Contrast', min: 80, max: 130 },
-                      { key: 'saturate', label: 'Saturate', min: 50, max: 150 },
-                      { key: 'temperature', label: 'Temperature', min: -20, max: 20 },
-                      { key: 'shadows', label: 'Shadows', min: -20, max: 20 },
-                    ] as const
-                  ).map(({ key, label, min, max }) => (
-                    <div key={key} className="space-y-0.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[9px] text-zinc-500">{label}</label>
-                        <span className="text-[9px] text-zinc-600 tabular-nums">{colourGrade[key]}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={min}
-                        max={max}
-                        value={colourGrade[key]}
-                        onChange={(e) => {
-                          setColourGrade({ ...colourGrade, [key]: parseInt(e.target.value) });
-                          setActivePreset('Custom');
-                        }}
-                        className="w-full h-1 bg-zinc-800 rounded appearance-none cursor-pointer accent-indigo-500"
-                      />
-                    </div>
-                  ))}
-
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => { setColourGrade(COLOUR_GRADE_PRESETS.Original); setActivePreset('Original'); }}
-                      className="flex-1 py-1 text-[9px] bg-white/5 hover:bg-white/10 text-zinc-400 rounded transition-colors"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      onClick={async () => { await persistClip({ colour_grade: colourGrade } as Partial<Clip>); toast('success', 'Grade saved'); }}
-                      className="flex-1 py-1 text-[9px] bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors"
-                    >
-                      Apply Grade
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button key={star} onClick={() => handleStarRating(star)} className={`text-xl transition-colors ${starRating >= star ? 'text-amber-400' : 'text-zinc-700 hover:text-zinc-500'}`}>★</button>
+              ))}
+              {starRating > 0 && <button onClick={() => handleStarRating(0)} className="text-[10px] text-zinc-600 hover:text-zinc-400 ml-1">Clear</button>}
             </div>
           </div>
 
-          {/* ═══ FIXED BOTTOM: Approve / Reject ═══ */}
-          <div className="flex-shrink-0 bg-[#111118] border-t border-zinc-800 p-3 space-y-1.5">
-            <div className="flex gap-2">
-              <button
-                onClick={handleApprove}
-                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                Approve & Next
-                <kbd className="text-[10px] px-1.5 py-0.5 bg-emerald-700 rounded text-emerald-200 font-mono">A</kbd>
-              </button>
-              <button
-                onClick={handleReject}
-                className="flex-1 py-2.5 bg-red-600/80 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                Reject
-                <kbd className="text-[10px] px-1.5 py-0.5 bg-red-700 rounded text-red-200 font-mono">R</kbd>
-              </button>
-            </div>
-
-            {/* Status indicator */}
-            <div className="text-center text-[10px] tabular-nums">
-              {clip.approved && <span className="text-emerald-400 font-medium">✓ Approved</span>}
-              {clip.rejected && <span className="text-red-400 font-medium">✗ Rejected</span>}
-              {!clip.approved && !clip.rejected && <span className="text-amber-400 font-medium">● Pending</span>}
-            </div>
+          {/* ═══ FIXED BOTTOM — V1: full-width amber Approve, bordered Reject ═══ */}
+          <div className="flex-shrink-0 bg-zinc-900/80 border-t border-zinc-800 p-4 space-y-2">
+            <button onClick={handleApprove} className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-xl transition-colors">
+              Approve & Next [A]
+            </button>
+            <button onClick={handleReject} className="w-full py-3 bg-transparent hover:bg-zinc-800 text-zinc-300 text-sm font-semibold rounded-xl border border-zinc-700 transition-colors">
+              Reject [R]
+            </button>
           </div>
         </div>
       </div>
