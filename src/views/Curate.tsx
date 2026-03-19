@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/activity';
 import { toast } from '@/components/Toast';
 import { Copy } from 'lucide-react';
+import { driveThumbUrl } from '@/lib/drive';
 
 const COLOUR_GRADE_PRESETS: Record<string, ColourGrade> = {
   Original: { brightness: 100, contrast: 100, saturate: 100, temperature: 0, shadows: 0 },
@@ -44,7 +45,7 @@ interface Segment {
 }
 
 export function Curate() {
-  const { clips, setActiveTab, updateClip, user, workspace, fetchClips } = useStore();
+  const { clips, setActiveTab, updateClip, user, workspace, fetchClips, thumbnailMap } = useStore();
   const [_showColourPanel, _setShowColourPanel] = useState(false);
   const [colourGrade, setColourGrade] = useState<ColourGrade>(COLOUR_GRADE_PRESETS.Original);
   const [activePreset, setActivePreset] = useState('Original');
@@ -759,6 +760,10 @@ export function Curate() {
                 const statusText = clip.approved ? 'APPROVED' : clip.rejected ? 'REJECTED' : 'PENDING';
                 const statusColor = clip.approved ? 'bg-emerald-600 text-white' : clip.rejected ? 'bg-red-600 text-white' : 'bg-amber-600 text-white';
                 const isActive = clip.id === selectedClipId;
+                // Resolve thumbnail same as ClipCard
+                const thumbSrc = clip.thumbnail_url
+                  || (clip.drive_file_id ? driveThumbUrl(clip.drive_file_id) : null)
+                  || (() => { const base = clip.name.replace(/\.[^.]+$/, ''); for (const [k, v] of thumbnailMap.entries()) { if (k.startsWith(base)) return driveThumbUrl(v); } return null; })();
                 return (
                   <div
                     key={clip.id}
@@ -768,8 +773,8 @@ export function Curate() {
                     }`}
                   >
                     <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-zinc-700/50 to-zinc-800 flex items-center justify-center">
-                      {clip.thumbnail_url ? (
-                        <img src={clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                      {thumbSrc ? (
+                        <img src={thumbSrc} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                       ) : (
                         <span className="text-[10px] text-zinc-600 px-2 text-center truncate">{clip.name}</span>
                       )}

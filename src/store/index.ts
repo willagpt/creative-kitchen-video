@@ -152,7 +152,15 @@ export const useStore = create<AppState>((set) => ({
         .order('name', { ascending: true });
 
       if (error) throw error;
-      set({ clips: (data as Clip[]) || [], loading: false });
+      // Deduplicate by name — keep the most recently updated version
+      const seen = new Map<string, Clip>();
+      for (const clip of (data as Clip[]) || []) {
+        const existing = seen.get(clip.name);
+        if (!existing || (clip.id > existing.id)) {
+          seen.set(clip.name, clip);
+        }
+      }
+      set({ clips: Array.from(seen.values()), loading: false });
     } catch (err) {
       console.error('Failed to fetch clips:', err);
       set({ loading: false });
