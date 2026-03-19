@@ -49,6 +49,10 @@ interface AppState {
   videoFileMap: Map<string, string>;
   setVideoFileMap: (map: Map<string, string>) => void;
 
+  // Local file map (clip basename -> blob URL for local playback)
+  localFileMap: Map<string, string>;
+  setLocalFileMap: (map: Map<string, string>) => void;
+
   // Header filters
   showCuratedOnly: boolean;
   setShowCuratedOnly: (show: boolean) => void;
@@ -138,6 +142,8 @@ export const useStore = create<AppState>((set) => ({
   setThumbnailMap: (thumbnailMap) => set({ thumbnailMap }),
   videoFileMap: new Map(),
   setVideoFileMap: (videoFileMap) => set({ videoFileMap }),
+  localFileMap: new Map(),
+  setLocalFileMap: (localFileMap) => set({ localFileMap }),
 
   showCuratedOnly: false,
   setShowCuratedOnly: (showCuratedOnly) => set({ showCuratedOnly }),

@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activity';
 import { toast } from '@/components/Toast';
 import { Copy } from 'lucide-react';
 import { driveThumbUrl } from '@/lib/drive';
+import { loadClipsFolder, loadMusicFolder, resolveLocalVideo } from '@/lib/localFiles';
 
 const COLOUR_GRADE_PRESETS: Record<string, ColourGrade> = {
   Original: { brightness: 100, contrast: 100, saturate: 100, temperature: 0, shadows: 0 },
@@ -45,7 +46,7 @@ interface Segment {
 }
 
 export function Curate() {
-  const { clips, setActiveTab, updateClip, user, workspace, fetchClips, thumbnailMap, videoFileMap } = useStore();
+  const { clips, setActiveTab, updateClip, user, workspace, fetchClips, thumbnailMap, videoFileMap, localFileMap, setLocalFileMap } = useStore();
   const [_showColourPanel, _setShowColourPanel] = useState(false);
   const [colourGrade, setColourGrade] = useState<ColourGrade>(COLOUR_GRADE_PRESETS.Original);
   const [activePreset, setActivePreset] = useState('Original');
@@ -737,10 +738,23 @@ export function Curate() {
             placeholder="Search clips..."
             className="h-8 px-3 bg-zinc-900 border border-zinc-700 rounded-md text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 w-48"
           />
-          <button className="px-3 py-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors">
-            + Clips
+          <button
+            onClick={async () => {
+              const map = await loadClipsFolder();
+              setLocalFileMap(map);
+              toast('success', `Loaded ${map.size / 2} video files from folder`);
+            }}
+            className="px-3 py-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+          >
+            + Clips {localFileMap.size > 0 && `(${localFileMap.size / 2})`}
           </button>
-          <button className="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors">
+          <button
+            onClick={async () => {
+              const map = await loadMusicFolder();
+              toast('success', `Loaded ${map.size} music files`);
+            }}
+            className="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors"
+          >
             + Music
           </button>
           <div className="text-sm text-zinc-400 font-bold tabular-nums">{curatedPercent}%<span className="text-zinc-500 font-normal ml-1">curated</span></div>
@@ -811,19 +825,32 @@ export function Curate() {
             <div className="p-4 space-y-4">
               {/* Video player area */}
               {(() => {
-                // Resolve VIDEO file ID from clip, videoFileMap, or thumbnailMap
+                // Resolve video source: local file first, then Drive
+                const localSrc = resolveLocalVideo(firstPendingClip.name, localFileMap);
                 const driveId = firstPendingClip.drive_file_id || (() => {
                   const base = firstPendingClip.name.replace(/\.[^.]+$/, '');
-                  // Try videoFileMap first (actual video files)
                   for (const [k, v] of videoFileMap.entries()) {
                     if (k.startsWith(base) || base.startsWith(k)) return v;
                   }
                   return null;
                 })();
+                const thumbSrc = firstPendingClip.thumbnail_url
+                  || (firstPendingClip.drive_file_id ? driveThumbUrl(firstPendingClip.drive_file_id) : null)
+                  || (() => { const base = firstPendingClip.name.replace(/\.[^.]+$/, ''); for (const [k, v] of thumbnailMap.entries()) { if (k.startsWith(base)) return driveThumbUrl(v); } return null; })();
+
                 return (
                   <div className="space-y-2">
                     <div className="bg-black rounded-lg overflow-hidden aspect-video border border-zinc-800">
-                      {driveId ? (
+                      {localSrc ? (
+                        /* Real HTML5 video player — V1 style */
+                        <video
+                          key={firstPendingClip.id}
+                          src={localSrc}
+                          controls
+                          className="w-full h-full object-contain bg-black"
+                          preload="auto"
+                        />
+                      ) : driveId ? (
                         <iframe
                           key={firstPendingClip.id}
                           src={`https://drive.google.com/file/d/${driveId}/preview`}
@@ -831,19 +858,27 @@ export function Curate() {
                           allow="autoplay"
                           allowFullScreen
                         />
-                      ) : firstPendingClip.thumbnail_url ? (
-                        <img
-                          src={firstPendingClip.thumbnail_url}
-                          alt={firstPendingClip.name}
-                          className="w-full h-full object-cover"
-                        />
+                      ) : thumbSrc ? (
+                        <img src={thumbSrc} alt={firstPendingClip.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-zinc-600 text-sm">
                           {firstPendingClip.name}
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-500 text-center">Click anywhere to annotate · Space to play/pause</p>
+                    {!localSrc && localFileMap.size === 0 && (
+                      <button
+                        onClick={async () => {
+                          const map = await loadClipsFolder();
+                          setLocalFileMap(map);
+                          toast('success', `Loaded ${map.size / 2} video files`);
+                        }}
+                        className="w-full text-center text-[11px] text-purple-400 hover:text-purple-300 py-1"
+                      >
+                        Load clips folder for playback
+                      </button>
+                    )}
+                    <p className="text-xs text-zinc-500 text-center">Space to play/pause</p>
                   </div>
                 );
               })()}
