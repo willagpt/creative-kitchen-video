@@ -1,6 +1,7 @@
 import type { Clip } from '@/types';
 import { useStore } from '@/store';
 import { Check } from 'lucide-react';
+import { driveThumbUrl } from '@/lib/drive';
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
   body: 'bg-[#6b8aff]',
@@ -18,8 +19,21 @@ interface ClipCardProps {
 }
 
 export function ClipCard({ clip, manageMode = false }: ClipCardProps) {
-  const { selectedClips, toggleSelectClip } = useStore();
+  const { selectedClips, toggleSelectClip, thumbnailMap } = useStore();
   const isSelected = selectedClips.has(clip.id);
+
+  // Resolve thumbnail: try clip.thumbnail_url first, then Drive thumbnailMap
+  const getThumbnailSrc = (): string | null => {
+    if (clip.thumbnail_url) return clip.thumbnail_url;
+    if (clip.drive_file_id) return driveThumbUrl(clip.drive_file_id);
+    // Try matching by name in thumbnailMap (e.g., "clip-name.jpg")
+    const baseName = clip.name.replace(/\.[^.]+$/, '');
+    for (const [thumbName, fileId] of thumbnailMap.entries()) {
+      if (thumbName.startsWith(baseName)) return driveThumbUrl(fileId);
+    }
+    return null;
+  };
+  const thumbnailSrc = getThumbnailSrc();
 
   const formatDuration = (seconds: number): string => {
     return `${seconds.toFixed(1)}s`;
@@ -59,10 +73,14 @@ export function ClipCard({ clip, manageMode = false }: ClipCardProps) {
     >
       {/* Thumbnail Area */}
       <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-zinc-700/50 to-zinc-800 rounded-t-lg flex items-center justify-center">
-        {/* Faint clip name text */}
-        <div className="absolute inset-0 flex items-center justify-center text-[10px] text-zinc-600 px-2 text-center">
-          <span className="line-clamp-1">{clip.name}</span>
-        </div>
+        {/* Actual thumbnail or faint clip name */}
+        {thumbnailSrc ? (
+          <img src={thumbnailSrc} alt={clip.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-[10px] text-zinc-600 px-2 text-center">
+            <span className="line-clamp-1">{clip.name}</span>
+          </div>
+        )}
 
         {/* TYPE Badge - TOP-LEFT */}
         <div className={`absolute top-1.5 left-1.5 z-[5] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase ${typeBgColor}`}>

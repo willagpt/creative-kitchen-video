@@ -61,6 +61,13 @@ export function Curate() {
     setActiveTab('curate');
   }, [setActiveTab]);
 
+  // Fetch clips if not already loaded (so Curate works without visiting Shots first)
+  useEffect(() => {
+    if (workspace && clips.length === 0) {
+      fetchClips(workspace.id);
+    }
+  }, [workspace, clips.length, fetchClips]);
+
   // Count clips by approval status
   const pendingCount = clips.filter((c) => !c.approved && !c.rejected && !c.archived).length;
   const approvedCount = clips.filter((c) => c.approved && !c.archived).length;
