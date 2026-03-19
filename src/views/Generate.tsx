@@ -3,94 +3,174 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/Toast';
-import { Shuffle, ChevronRight, Settings2, Zap } from 'lucide-react';
+import { Shuffle, Settings2, Zap, Check, Download, BookOpen } from 'lucide-react';
+import type { Clip } from '@/types';
 
 /* ── Types ─────────────────────────────────────────────────────────── */
+
+interface AidaSlot {
+  phase: 'ATT' | 'INT' | 'DES' | 'ACT';
+  type: 'HOK' | 'BOD' | 'PRO' | 'CTA';
+  clip: Clip | null;
+  weight: number;
+}
+
+interface TextOverlay {
+  text: string;
+}
+
+interface GeneratedVariation {
+  idx: number;
+  name: string;
+  slots: AidaSlot[];
+  overlays: TextOverlay[];
+  musicTrack: string | null;
+  totalDuration: number;
+  selected: boolean;
+}
 
 interface StrategyOption {
   id: string;
   name: string;
 }
 
-interface GeneratedVariation {
-  idx: number;
-  name: string;
-  hookClip: ClipRef | null;
-  bodyClip: ClipRef | null;
-  productClip: ClipRef | null;
-  ctaClip: ClipRef | null;
-  totalDuration: number;
-  actionRatio: number;
-}
+/* ── AIDA templates per format ─────────────────────────────────────── */
 
-interface ClipRef {
-  id: number;
-  name: string;
-  duration: number;
-  type: string;
-  ratio: string;
-  thumbnail_url: string | null;
-}
+type SlotTemplate = { phase: 'ATT' | 'INT' | 'DES' | 'ACT'; type: 'HOK' | 'BOD' | 'PRO' | 'CTA'; weight: number };
 
-/* ── AIDA shot structure by format ─────────────────────────────────── */
-
-const AIDA_STRUCTURES: Record<string, { label: string; slots: { type: string; phase: string; weight: number }[] }> = {
+const AIDA_TEMPLATES: Record<string, { label: string; slots: SlotTemplate[] }> = {
   '7s-snappy': {
     label: '7s Snappy',
     slots: [
-      { type: 'hook', phase: 'Attention', weight: 0.28 },
-      { type: 'body', phase: 'Interest', weight: 0.29 },
-      { type: 'product', phase: 'Desire', weight: 0.28 },
-      { type: 'cta', phase: 'Action', weight: 0.15 },
+      { phase: 'ATT', type: 'HOK', weight: 0.28 },
+      { phase: 'INT', type: 'BOD', weight: 0.22 },
+      { phase: 'INT', type: 'PRO', weight: 0.22 },
+      { phase: 'DES', type: 'BOD', weight: 0.15 },
+      { phase: 'ACT', type: 'CTA', weight: 0.13 },
     ],
   },
   '10s-hs1': {
     label: '10s HS1 Winner',
     slots: [
-      { type: 'hook', phase: 'Attention', weight: 0.20 },
-      { type: 'body', phase: 'Interest', weight: 0.25 },
-      { type: 'body', phase: 'Interest', weight: 0.15 },
-      { type: 'product', phase: 'Desire', weight: 0.25 },
-      { type: 'cta', phase: 'Action', weight: 0.15 },
+      { phase: 'ATT', type: 'HOK', weight: 0.15 },
+      { phase: 'INT', type: 'BOD', weight: 0.13 },
+      { phase: 'INT', type: 'PRO', weight: 0.13 },
+      { phase: 'DES', type: 'BOD', weight: 0.13 },
+      { phase: 'DES', type: 'BOD', weight: 0.13 },
+      { phase: 'DES', type: 'BOD', weight: 0.13 },
+      { phase: 'ACT', type: 'CTA', weight: 0.20 },
     ],
   },
   '15s-narr': {
     label: '15s Narrative',
     slots: [
-      { type: 'hook', phase: 'Attention', weight: 0.13 },
-      { type: 'body', phase: 'Interest', weight: 0.17 },
-      { type: 'body', phase: 'Interest', weight: 0.13 },
-      { type: 'product', phase: 'Desire', weight: 0.20 },
-      { type: 'product', phase: 'Desire', weight: 0.17 },
-      { type: 'body', phase: 'Desire', weight: 0.10 },
-      { type: 'cta', phase: 'Action', weight: 0.10 },
+      { phase: 'ATT', type: 'HOK', weight: 0.10 },
+      { phase: 'INT', type: 'BOD', weight: 0.10 },
+      { phase: 'INT', type: 'PRO', weight: 0.10 },
+      { phase: 'DES', type: 'BOD', weight: 0.10 },
+      { phase: 'DES', type: 'BOD', weight: 0.10 },
+      { phase: 'DES', type: 'PRO', weight: 0.10 },
+      { phase: 'DES', type: 'BOD', weight: 0.10 },
+      { phase: 'DES', type: 'BOD', weight: 0.10 },
+      { phase: 'ACT', type: 'CTA', weight: 0.20 },
     ],
   },
   '10s-prod': {
     label: '10s Product Focus',
     slots: [
-      { type: 'hook', phase: 'Attention', weight: 0.15 },
-      { type: 'product', phase: 'Interest', weight: 0.25 },
-      { type: 'product', phase: 'Desire', weight: 0.25 },
-      { type: 'body', phase: 'Desire', weight: 0.20 },
-      { type: 'cta', phase: 'Action', weight: 0.15 },
+      { phase: 'ATT', type: 'HOK', weight: 0.15 },
+      { phase: 'INT', type: 'PRO', weight: 0.15 },
+      { phase: 'INT', type: 'PRO', weight: 0.15 },
+      { phase: 'DES', type: 'BOD', weight: 0.13 },
+      { phase: 'DES', type: 'BOD', weight: 0.13 },
+      { phase: 'DES', type: 'PRO', weight: 0.13 },
+      { phase: 'ACT', type: 'CTA', weight: 0.16 },
     ],
   },
 };
 
+/* ── Text overlay pools by persona × pillar ────────────────────────── */
+
+const OVERLAY_POOLS: Record<string, string[]> = {
+  'busy-prof:time-eff': [
+    'Ready when you are', 'Skip the queue', 'No prep needed', '5 mins flat',
+    'Your week, planned', 'Delivered to your door', 'Zero cleanup',
+    'More time for you', '50+ options weekly', 'Order now',
+  ],
+  'busy-prof:weight-loss': [
+    'Under 500 cal', 'Macro-tracked', 'No hidden sugars', 'Stay on track',
+    'Chef-prepared daily', 'Always fresh', 'Guilt-free lunch',
+    'Fuel your goals', 'Start today', 'Order now',
+  ],
+  'busy-prof:price-value': [
+    'Skip the markup', 'Chef quality, half the price', 'No hidden fees',
+    '$8.99 per meal', 'Cancel anytime', 'Free delivery over $40',
+    'Your Lunch, Sorted', 'Better than takeout', 'Try it free', 'Order now',
+  ],
+  'health-ent:time-eff': [
+    'Clean eating, fast', 'Ready in minutes', 'Whole ingredients',
+    'No compromises', 'Fresh not frozen', 'Chef-prepared',
+    'Done for You', 'Always fresh', 'Skip the cooking', 'Order now',
+  ],
+  'health-ent:weight-loss': [
+    'Calorie-counted', 'High protein', 'Dietitian approved',
+    'No fillers', 'Real ingredients', 'Track everything',
+    'Your goals, served', 'Lose weight deliciously', 'Start today', 'Order now',
+  ],
+  'health-ent:price-value': [
+    'Healthier than takeout', 'Premium ingredients', 'No subscription',
+    'Pay per meal', 'Always transparent', 'Freshness guaranteed',
+    'Eat clean, spend less', 'Real food, real price', 'Try it free', 'Order now',
+  ],
+  'family-prov:time-eff': [
+    'Family dinner, sorted', 'Everyone eats happy', 'No prep, no stress',
+    '10 min table-ready', 'Kids love it too', 'Delivered fresh',
+    'More family time', 'Weekly variety', 'Start tonight', 'Order now',
+  ],
+  'family-prov:weight-loss': [
+    'Healthy family meals', 'Kids approved', 'Balanced portions',
+    'No junk, no stress', 'Whole food ingredients', 'Dietitian designed',
+    'Feed them right', 'Everyone wins', 'Start today', 'Order now',
+  ],
+  'family-prov:price-value': [
+    'Feed 4 for $32', 'Cheaper than takeout', 'No food waste',
+    'Perfectly portioned', 'Chef-quality family meals', 'Cancel anytime',
+    'Savings that stack', 'Better value daily', 'Try it free', 'Order now',
+  ],
+};
+
+const MUSIC_TRACKS = [
+  'Downtown – Shtrik', 'Lover Please Stay I…', 'Duda – Ian Post',
+  'Chartreux Noir – B…', 'Can You Make It__ …', 'Light Ahead – Remi',
+  'Sunrise Coast – Al…', 'Warm Breeze – Juno', 'Quick Step – MFP',
+  'Good Morning – Sam…',
+];
+
 /* ── Helpers ────────────────────────────────────────────────────────── */
 
-function pickRandom<T>(arr: T[], exclude?: T): T | null {
+function pickRandom<T>(arr: T[]): T | null {
   if (arr.length === 0) return null;
-  if (arr.length === 1) return arr[0];
-  const filtered = exclude ? arr.filter(a => a !== exclude) : arr;
-  if (filtered.length === 0) return arr[0];
-  return filtered[Math.floor(Math.random() * filtered.length)];
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function toClipRef(c: { id: number; name: string; duration: number; type: string; ratio: string; thumbnail_url: string | null }): ClipRef {
-  return { id: c.id, name: c.name, duration: c.duration, type: c.type, ratio: c.ratio, thumbnail_url: c.thumbnail_url };
+function pickRandomN<T>(arr: T[], n: number): T[] {
+  const shuffled = [...arr].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n);
 }
+
+const SLOT_BG: Record<string, string> = {
+  HOK: 'bg-green-700/60',
+  BOD: 'bg-blue-700/50',
+  PRO: 'bg-orange-700/50',
+  CTA: 'bg-teal-700/50',
+};
+
+const SLOT_HEADER_BG: Record<string, string> = {
+  ATT: 'bg-green-600/80',
+  INT: 'bg-blue-600/60',
+  DES: 'bg-amber-600/60',
+  ACT: 'bg-teal-600/70',
+};
 
 /* ── Component ─────────────────────────────────────────────────────── */
 
@@ -99,22 +179,19 @@ export function Generate() {
   const { clips, setActiveTab, reiterateContext, setReiterateContext, workspace } = useStore();
   const [generating, setGenerating] = useState(false);
 
-  // Strategy options
+  // Strategy
   const personas: StrategyOption[] = [
     { id: 'busy-prof', name: 'Busy Professional' },
     { id: 'health-ent', name: 'Health Enthusiast' },
     { id: 'family-prov', name: 'Family Provider' },
   ];
-
   const pillars: StrategyOption[] = [
     { id: 'time-eff', name: 'Time Efficiency' },
     { id: 'weight-loss', name: 'Weight Loss' },
     { id: 'price-value', name: 'Price & Value' },
   ];
-
-  const formats = Object.entries(AIDA_STRUCTURES).map(([id, s]) => ({ id, name: s.label }));
+  const formats = Object.entries(AIDA_TEMPLATES).map(([id, s]) => ({ id, name: s.label }));
   const ratios = ['1:1', '16:9', '9:16'];
-
   const variationTests = [
     { id: 'full-mix', label: 'Full Mix', desc: 'Vary everything' },
     { id: 'hook-test', label: 'Hook Test', desc: 'Only vary hooks' },
@@ -122,37 +199,34 @@ export function Generate() {
     { id: 'cta-test', label: 'CTA Test', desc: 'Only vary CTA' },
   ];
 
-  const [selectedPersona, setSelectedPersona] = useState<string>('busy-prof');
-  const [selectedPillar, setSelectedPillar] = useState<string>('time-eff');
-  const [selectedFormat, setSelectedFormat] = useState<string>('10s-hs1');
-  const [selectedRatio, setSelectedRatio] = useState<string>('1:1');
-  const [selectedVariation, setSelectedVariation] = useState<string>('full-mix');
-  const [brandPrefix, setBrandPrefix] = useState<string>('CK');
-  const [columnCount, setColumnCount] = useState<number>(5);
-  const [curatedOnly, setCuratedOnly] = useState<boolean>(false);
-  const [gradedOnly, setGradedOnly] = useState<boolean>(true);
-  const [useMusic, setUseMusic] = useState<boolean>(true);
-  const [ctasExpanded, setCtasExpanded] = useState<boolean>(false);
+  const [selectedPersona, setSelectedPersona] = useState('busy-prof');
+  const [selectedPillar, setSelectedPillar] = useState('time-eff');
+  const [selectedFormat, setSelectedFormat] = useState('10s-hs1');
+  const [selectedRatio, setSelectedRatio] = useState('1:1');
+  const [selectedVariation, setSelectedVariation] = useState('full-mix');
+  const [brandPrefix, setBrandPrefix] = useState('CK');
+  const [columnCount, setColumnCount] = useState(5);
+  const [curatedOnly, setCuratedOnly] = useState(false);
+  const [gradedOnly, setGradedOnly] = useState(true);
+  const [useMusic, setUseMusic] = useState(true);
+  const [ctasExpanded, setCtasExpanded] = useState(false);
   const [strategyEditorOpen, setStrategyEditorOpen] = useState(false);
-  const [previewVariations, setPreviewVariations] = useState<GeneratedVariation[]>([]);
+  const [variations, setVariations] = useState<GeneratedVariation[]>([]);
 
-  useEffect(() => {
-    setActiveTab('generate');
-  }, [setActiveTab]);
+  useEffect(() => { setActiveTab('generate'); }, [setActiveTab]);
 
-  /* ── Filtered clips by type ────────────────────────────────────── */
+  /* ── Clip pools ────────────────────────────────────────────────── */
   const filteredClips = useMemo(() => {
     let pool = clips.filter(c => c.approved);
-    if (curatedOnly) pool = pool.filter(c => c.approved);
     if (gradedOnly) pool = pool.filter(c => c.graded);
     return pool;
-  }, [clips, curatedOnly, gradedOnly]);
+  }, [clips, gradedOnly]);
 
   const clipsByType = useMemo(() => ({
-    hook: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'hook'),
-    body: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'body'),
-    product: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'product'),
-    cta: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'cta'),
+    HOK: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'hook'),
+    BOD: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'body'),
+    PRO: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'product'),
+    CTA: filteredClips.filter(c => (c.type || 'body').toLowerCase() === 'cta'),
   }), [filteredClips]);
 
   const allClipsByType = useMemo(() => ({
@@ -163,122 +237,120 @@ export function Generate() {
   }), [clips]);
 
   const comboCount = useMemo(() => {
-    const h = Math.max(1, clipsByType.hook.length);
-    const b = Math.max(1, clipsByType.body.length);
-    const p = Math.max(1, clipsByType.product.length);
-    const ct = Math.max(1, clipsByType.cta.length);
+    const h = Math.max(1, clipsByType.HOK.length);
+    const b = Math.max(1, clipsByType.BOD.length);
+    const p = Math.max(1, clipsByType.PRO.length);
+    const ct = Math.max(1, clipsByType.CTA.length);
     return h * b * p * ct * formats.length * ratios.length;
   }, [clipsByType, formats.length, ratios.length]);
 
   const personaData = personas.find(p => p.id === selectedPersona);
   const pillarData = pillars.find(p => p.id === selectedPillar);
   const formatData = formats.find(f => f.id === selectedFormat);
-  const aidaStructure = AIDA_STRUCTURES[selectedFormat];
+  const aidaTemplate = AIDA_TEMPLATES[selectedFormat];
 
-  /* ── Combinatorial generation ──────────────────────────────────── */
+  /* ── Generate variations ───────────────────────────────────────── */
   const generateVariations = useCallback((count: number): GeneratedVariation[] => {
-    const hooks = clipsByType.hook;
-    const bodies = clipsByType.body;
-    const products = clipsByType.product;
-    const ctas = clipsByType.cta;
-    const structure = AIDA_STRUCTURES[selectedFormat];
-    if (!structure) return [];
+    const template = AIDA_TEMPLATES[selectedFormat];
+    if (!template) return [];
 
-    const variations: GeneratedVariation[] = [];
-    const usedCombos = new Set<string>();
+    const formatDuration = parseFloat(template.label.match(/(\d+)s/)?.[1] || '10');
+    const overlayKey = `${selectedPersona}:${selectedPillar}`;
+    const overlayPool = OVERLAY_POOLS[overlayKey] || OVERLAY_POOLS['busy-prof:time-eff'];
+
+    const result: GeneratedVariation[] = [];
+    const usedHookIds = new Set<number>();
 
     for (let i = 0; i < count; i++) {
-      let hookClip: ClipRef | null = null;
-      let bodyClip: ClipRef | null = null;
-      let productClip: ClipRef | null = null;
-      let ctaClip: ClipRef | null = null;
+      // For each slot, pick a clip from the matching pool
+      const slots: AidaSlot[] = template.slots.map(tmpl => {
+        const pool = clipsByType[tmpl.type];
+        let clip: Clip | null = null;
 
-      // Different strategies based on variation test type
-      if (selectedVariation === 'hook-test') {
-        // Vary only hooks, keep body/product/cta fixed
-        hookClip = hooks.length > 0 ? toClipRef(hooks[i % hooks.length]) : null;
-        bodyClip = bodies.length > 0 ? toClipRef(bodies[0]) : null;
-        productClip = products.length > 0 ? toClipRef(products[0]) : null;
-        ctaClip = ctas.length > 0 ? toClipRef(ctas[0]) : null;
-      } else if (selectedVariation === 'body-test') {
-        hookClip = hooks.length > 0 ? toClipRef(hooks[0]) : null;
-        bodyClip = bodies.length > 0 ? toClipRef(bodies[i % bodies.length]) : null;
-        productClip = products.length > 0 ? toClipRef(products[0]) : null;
-        ctaClip = ctas.length > 0 ? toClipRef(ctas[0]) : null;
-      } else if (selectedVariation === 'cta-test') {
-        hookClip = hooks.length > 0 ? toClipRef(hooks[0]) : null;
-        bodyClip = bodies.length > 0 ? toClipRef(bodies[0]) : null;
-        productClip = products.length > 0 ? toClipRef(products[0]) : null;
-        ctaClip = ctas.length > 0 ? toClipRef(ctas[i % ctas.length]) : null;
-      } else {
-        // Full mix — try unique combos, fall back to random
-        let attempts = 0;
-        do {
-          hookClip = hooks.length > 0 ? toClipRef(pickRandom(hooks)!) : null;
-          bodyClip = bodies.length > 0 ? toClipRef(pickRandom(bodies)!) : null;
-          productClip = products.length > 0 ? toClipRef(pickRandom(products)!) : null;
-          ctaClip = ctas.length > 0 ? toClipRef(pickRandom(ctas)!) : null;
-          const key = `${hookClip?.id}-${bodyClip?.id}-${productClip?.id}-${ctaClip?.id}`;
-          if (!usedCombos.has(key) || attempts > 50) {
-            usedCombos.add(key);
-            break;
-          }
-          attempts++;
-        } while (true);
-      }
-
-      // Calculate duration from structure weights and clip durations
-      let totalDuration = 0;
-      let actionSeconds = 0;
-      const formatDuration = parseFloat(structure.label.match(/(\d+)s/)?.[1] || '10');
-
-      for (const slot of structure.slots) {
-        const slotDuration = formatDuration * slot.weight;
-        totalDuration += slotDuration;
-        // "action" = hook + cta, "static" = body + product
-        if (slot.type === 'hook' || slot.type === 'cta') {
-          actionSeconds += slotDuration;
+        if (selectedVariation === 'hook-test' && tmpl.type !== 'HOK') {
+          clip = pool.length > 0 ? pool[0] : null;
+        } else if (selectedVariation === 'body-test' && tmpl.type !== 'BOD') {
+          clip = pool.length > 0 ? pool[0] : null;
+        } else if (selectedVariation === 'cta-test' && tmpl.type !== 'CTA') {
+          clip = pool.length > 0 ? pool[0] : null;
+        } else {
+          clip = pickRandom(pool);
         }
-      }
 
-      const actionRatio = totalDuration > 0 ? actionSeconds / (totalDuration - actionSeconds) : 0;
+        // For hooks, try to get unique per variation
+        if (tmpl.type === 'HOK' && pool.length > 1) {
+          const unused = pool.filter(c => !usedHookIds.has(c.id));
+          clip = unused.length > 0 ? pickRandom(unused) : pickRandom(pool);
+        }
 
-      variations.push({
+        if (clip && tmpl.type === 'HOK') usedHookIds.add(clip.id);
+
+        return {
+          phase: tmpl.phase,
+          type: tmpl.type,
+          clip,
+          weight: tmpl.weight,
+        };
+      });
+
+      // Pick overlay texts (pick random subset from pool)
+      const numOverlays = Math.min(template.slots.length, overlayPool.length);
+      const overlays = pickRandomN(overlayPool, numOverlays).map(text => ({ text }));
+
+      // Pick music track
+      const music = useMusic ? pickRandom(MUSIC_TRACKS) : null;
+
+      const totalDuration = Math.round(formatDuration * 10) / 10;
+
+      const formatShort = template.label.replace(/\s/g, '_').replace(/[()]/g, '');
+
+      result.push({
         idx: i,
-        name: `${brandPrefix}_${(personaData?.name || '').replace(/\s/g, '')}_${(formatData?.name || '').replace(/\s/g, '')}_v${i + 1}`,
-        hookClip,
-        bodyClip,
-        productClip,
-        ctaClip,
-        totalDuration: Math.round(totalDuration * 10) / 10,
-        actionRatio: Math.round(actionRatio * 10) / 10,
+        name: `${brandPrefix}_${formatShort}_${selectedRatio.replace(':', 'x')}_V${i + 1}`,
+        slots,
+        overlays,
+        musicTrack: music,
+        totalDuration,
+        selected: true,
       });
     }
 
-    return variations;
-  }, [clipsByType, selectedFormat, selectedVariation, brandPrefix, personaData, formatData]);
+    return result;
+  }, [clipsByType, selectedFormat, selectedVariation, selectedPersona, selectedPillar, useMusic, brandPrefix, selectedRatio, personaData]);
 
-  // Auto-generate preview when settings change
+  // Auto-generate on settings change
   useEffect(() => {
     if (filteredClips.length > 0) {
-      setPreviewVariations(generateVariations(columnCount));
+      setVariations(generateVariations(columnCount));
     } else {
-      setPreviewVariations([]);
+      setVariations([]);
     }
   }, [columnCount, generateVariations, filteredClips.length]);
 
   const handleRegenerate = () => {
-    setPreviewVariations(generateVariations(columnCount));
+    setVariations(generateVariations(columnCount));
   };
+
+  const toggleVariationSelection = (idx: number) => {
+    setVariations(prev => prev.map(v => v.idx === idx ? { ...v, selected: !v.selected } : v));
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = variations.every(v => v.selected);
+    setVariations(prev => prev.map(v => ({ ...v, selected: !allSelected })));
+  };
+
+  const selectedCount = variations.filter(v => v.selected).length;
 
   /* ── Push to Supabase & navigate ───────────────────────────────── */
   const handleGenerate = async () => {
-    if (previewVariations.length === 0) return;
+    const selected = variations.filter(v => v.selected);
+    if (selected.length === 0) return;
     setGenerating(true);
-    toast('info', `Generating ${columnCount} variations...`);
+    toast('info', `Generating ${selected.length} variations...`);
 
     try {
-      const records = previewVariations.map(v => ({
+      const records = selected.map(v => ({
         workspace_id: workspace?.id,
         name: v.name,
         recipe_name: `${personaData?.name} × ${pillarData?.name}`,
@@ -286,10 +358,10 @@ export function Generate() {
         ratio: selectedRatio,
         variation_type: selectedVariation,
         status: 'queued',
-        hook_clip_id: v.hookClip?.id || null,
-        body_clip_id: v.bodyClip?.id || null,
-        product_clip_id: v.productClip?.id || null,
-        cta_clip_id: v.ctaClip?.id || null,
+        hook_clip_id: v.slots.find(s => s.type === 'HOK')?.clip?.id || null,
+        body_clip_id: v.slots.find(s => s.type === 'BOD')?.clip?.id || null,
+        product_clip_id: v.slots.find(s => s.type === 'PRO')?.clip?.id || null,
+        cta_clip_id: v.slots.find(s => s.type === 'CTA')?.clip?.id || null,
         created_at: new Date().toISOString(),
       }));
 
@@ -298,7 +370,7 @@ export function Generate() {
         console.error('Supabase insert error:', error);
         toast('error', `DB error: ${error.message}`);
       } else {
-        toast('success', `${columnCount} variations saved! Redirecting to Review...`);
+        toast('success', `${selected.length} variations saved! Redirecting to Review...`);
       }
       navigate('/review');
     } catch (err) {
@@ -306,6 +378,47 @@ export function Generate() {
       toast('error', 'Generation failed — check console');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  /* ── Export batch JSON ─────────────────────────────────────────── */
+  const handleExportBatch = () => {
+    const selected = variations.filter(v => v.selected);
+    const json = JSON.stringify({
+      strategy: { persona: personaData?.name, pillar: pillarData?.name, format: formatData?.name, ratio: selectedRatio },
+      variations: selected.map(v => ({
+        name: v.name,
+        slots: v.slots.map(s => ({ phase: s.phase, type: s.type, clip: s.clip?.name || null })),
+        overlays: v.overlays.map(o => o.text),
+        music: v.musicTrack,
+      })),
+    }, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `batch_${brandPrefix}_${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /* ── Save to Recipes ───────────────────────────────────────────── */
+  const handleSaveToRecipes = async () => {
+    const selected = variations.filter(v => v.selected);
+    if (selected.length === 0 || !workspace) return;
+    try {
+      const recipes = selected.map(v => ({
+        workspace_id: workspace.id,
+        name: v.name,
+        format: formatData?.name || '10s HS1',
+        ratios: [selectedRatio],
+        shots: v.slots.map(s => ({ type: `${s.phase}/${s.type}`, duration: Math.round(v.totalDuration * s.weight * 10) / 10, clip_id: s.clip?.id })),
+        status: 'draft',
+      }));
+      const { error } = await supabase.from('recipes').insert(recipes);
+      if (error) throw error;
+      toast('success', `${selected.length} recipe(s) saved`);
+    } catch (err) {
+      console.error('Save recipes error:', err);
+      toast('error', 'Failed to save recipes');
     }
   };
 
@@ -319,20 +432,21 @@ export function Generate() {
     </button>
   );
 
-  const shotTypeColor: Record<string, string> = {
-    hook: '#ff6b6b',
-    body: '#6b8aff',
-    product: '#f0a030',
-    cta: '#4ecdc4',
-  };
-
   const hasApproved = clips.filter(c => c.approved).length > 0;
+  const shotTypeColorDot: Record<string, string> = { hook: '#ff6b6b', body: '#6b8aff', product: '#f0a030', cta: '#4ecdc4' };
+
+  /* ── Truncate clip name for slot display ────────────────────────── */
+  const clipLabel = (clip: Clip | null) => {
+    if (!clip) return '—';
+    const name = clip.name || clip.fullname || '';
+    return name.length > 12 ? name.slice(0, 11) + '…' : name;
+  };
 
   return (
     <div className="h-full flex overflow-hidden bg-zinc-950">
-      {/* LEFT SIDEBAR */}
-      <div className="w-80 border-r border-zinc-800 bg-zinc-900/30 flex flex-col overflow-y-auto">
-        {/* Header + Strategy Pills */}
+      {/* ═══ LEFT SIDEBAR ═══ */}
+      <div className="w-80 border-r border-zinc-800 bg-zinc-900/30 flex flex-col overflow-y-auto flex-shrink-0">
+        {/* Header */}
         <div className="p-5 pb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-zinc-100">Generate</h2>
@@ -344,25 +458,18 @@ export function Generate() {
               Edit strategy
             </button>
           </div>
-
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => { const idx = personas.findIndex(p => p.id === selectedPersona); setSelectedPersona(personas[(idx + 1) % personas.length].id); }}
-              className="px-3 py-1.5 rounded-full border border-teal-500/50 bg-teal-500/10 text-[11px] text-zinc-200 font-medium hover:bg-teal-500/20 transition-colors"
-            >
+            <button onClick={() => { const idx = personas.findIndex(p => p.id === selectedPersona); setSelectedPersona(personas[(idx + 1) % personas.length].id); }}
+              className="px-3 py-1.5 rounded-full border border-teal-500/50 bg-teal-500/10 text-[11px] text-zinc-200 font-medium hover:bg-teal-500/20 transition-colors">
               {personaData?.name}
             </button>
-            <button
-              onClick={() => { const idx = pillars.findIndex(p => p.id === selectedPillar); setSelectedPillar(pillars[(idx + 1) % pillars.length].id); }}
-              className="px-3 py-1.5 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-[11px] text-zinc-200 font-medium hover:bg-emerald-500/20 transition-colors"
-            >
+            <button onClick={() => { const idx = pillars.findIndex(p => p.id === selectedPillar); setSelectedPillar(pillars[(idx + 1) % pillars.length].id); }}
+              className="px-3 py-1.5 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-[11px] text-zinc-200 font-medium hover:bg-emerald-500/20 transition-colors">
               {pillarData?.name}
             </button>
-            <button
-              onClick={() => { const idx = formats.findIndex(f => f.id === selectedFormat); setSelectedFormat(formats[(idx + 1) % formats.length].id); }}
-              className="px-3 py-1.5 rounded-full border border-amber-500/50 bg-amber-500/10 text-[11px] text-zinc-200 font-medium hover:bg-amber-500/20 transition-colors"
-            >
-              {formatData?.name}
+            <button onClick={() => { const idx = formats.findIndex(f => f.id === selectedFormat); setSelectedFormat(formats[(idx + 1) % formats.length].id); }}
+              className="px-3 py-1.5 rounded-full border border-amber-500/50 bg-amber-500/10 text-[11px] text-zinc-200 font-medium hover:bg-amber-500/20 transition-colors">
+              {formatData?.name} ({aidaTemplate?.label.match(/\d+s/)?.[0] || ''})
             </button>
             <div className="px-3 py-1.5 rounded-full border border-zinc-600 bg-zinc-800/50 text-[11px] text-zinc-400">
               {selectedRatio}
@@ -370,118 +477,63 @@ export function Generate() {
           </div>
         </div>
 
-        {/* Strategy Editor (toggled) */}
+        {/* Strategy editor */}
         {strategyEditorOpen && (
-          <div className="px-5 pb-4 border-b border-zinc-800">
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Persona</label>
+          <div className="px-5 pb-4 border-b border-zinc-800 space-y-3">
+            {[
+              { label: 'Persona', items: personas, sel: selectedPersona, set: setSelectedPersona, color: 'teal' },
+              { label: 'Pillar', items: pillars, sel: selectedPillar, set: setSelectedPillar, color: 'emerald' },
+              { label: 'Format', items: formats, sel: selectedFormat, set: setSelectedFormat, color: 'amber' },
+            ].map(({ label, items, sel, set, color }) => (
+              <div key={label}>
+                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">{label}</label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
-                  {personas.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => setSelectedPersona(p.id)}
+                  {items.map(item => (
+                    <button key={item.id} onClick={() => set(item.id)}
                       className={`px-2.5 py-1 rounded text-[10px] border transition-all ${
-                        selectedPersona === p.id
-                          ? 'border-teal-500 bg-teal-500/20 text-teal-300'
-                          : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                      }`}
-                    >
-                      {p.name}
+                        sel === item.id ? `border-${color}-500 bg-${color}-500/20 text-${color}-300` : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                      }`}>
+                      {item.name}
                     </button>
                   ))}
                 </div>
               </div>
-              <div>
-                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Pillar</label>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {pillars.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => setSelectedPillar(p.id)}
-                      className={`px-2.5 py-1 rounded text-[10px] border transition-all ${
-                        selectedPillar === p.id
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                          : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                      }`}
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Format</label>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {formats.map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => setSelectedFormat(f.id)}
-                      className={`px-2.5 py-1 rounded text-[10px] border transition-all ${
-                        selectedFormat === f.id
-                          ? 'border-amber-500 bg-amber-500/20 text-amber-300'
-                          : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                      }`}
-                    >
-                      {f.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         )}
 
-        {/* VARIATION TESTING */}
+        {/* Variation testing */}
         <div className="px-5 pb-5 border-b border-zinc-800">
-          <h3 className="text-xs text-zinc-400 mb-3 uppercase tracking-widest font-medium">
-            Variation Testing
-          </h3>
+          <h3 className="text-xs text-zinc-400 mb-3 uppercase tracking-widest font-medium">Variation Testing</h3>
           <div className="grid grid-cols-2 gap-2">
-            {variationTests.map((test) => (
-              <button
-                key={test.id}
-                onClick={() => setSelectedVariation(test.id)}
-                className={`p-3 rounded-lg border transition-all text-left ${
-                  selectedVariation === test.id
-                    ? 'bg-purple-900/30 border-purple-500'
-                    : 'border-zinc-700 bg-zinc-800/30 hover:border-zinc-600'
-                }`}
-              >
-                <div className={`text-sm font-semibold ${selectedVariation === test.id ? 'text-white' : 'text-zinc-200'}`}>
-                  {test.label}
-                </div>
-                <div className={`text-[10px] mt-0.5 ${selectedVariation === test.id ? 'text-purple-300' : 'text-zinc-500'}`}>
-                  {test.desc}
-                </div>
+            {variationTests.map(test => (
+              <button key={test.id} onClick={() => setSelectedVariation(test.id)}
+                className={`p-3 rounded-lg border transition-all text-left ${selectedVariation === test.id ? 'bg-purple-900/30 border-purple-500' : 'border-zinc-700 bg-zinc-800/30 hover:border-zinc-600'}`}>
+                <div className={`text-sm font-semibold ${selectedVariation === test.id ? 'text-white' : 'text-zinc-200'}`}>{test.label}</div>
+                <div className={`text-[10px] mt-0.5 ${selectedVariation === test.id ? 'text-purple-300' : 'text-zinc-500'}`}>{test.desc}</div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* MANAGE CTAs */}
+        {/* CTAs */}
         <div className="px-5 py-4 border-b border-zinc-800">
-          <button
-            onClick={() => setCtasExpanded(!ctasExpanded)}
-            className="flex items-center justify-between w-full text-left"
-          >
+          <button onClick={() => setCtasExpanded(!ctasExpanded)} className="flex items-center justify-between w-full text-left">
             <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-medium">
-              Manage CTAs ({clipsByType.cta.length} Active / 0 Excluded)
+              Manage CTAs ({clipsByType.CTA.length} Active / 0 Excluded)
             </h3>
             <span className={`text-zinc-500 text-xs transition-transform ${ctasExpanded ? 'rotate-90' : ''}`}>▸</span>
           </button>
           {ctasExpanded && (
             <div className="mt-3 space-y-1.5">
-              {clipsByType.cta.length > 0 ? clipsByType.cta.map(c => (
+              {clipsByType.CTA.length > 0 ? clipsByType.CTA.map(c => (
                 <div key={c.id} className="flex items-center gap-2 text-[11px] p-2 border border-zinc-700 rounded bg-zinc-800/20">
                   <div className="w-2 h-2 rounded-full bg-[#4ecdc4]" />
                   <span className="text-zinc-300 flex-1 truncate">{c.name}</span>
                   <span className="text-zinc-600">{c.duration.toFixed(1)}s</span>
                 </div>
               )) : (
-                <div className="text-[11px] text-zinc-500 p-3 border border-zinc-700 rounded-lg bg-zinc-800/20">
-                  No CTAs available
-                </div>
+                <div className="text-[11px] text-zinc-500 p-3 border border-zinc-700 rounded-lg bg-zinc-800/20">No CTAs available</div>
               )}
             </div>
           )}
@@ -490,28 +542,18 @@ export function Generate() {
         {/* Brand prefix + ratio + toggles */}
         <div className="px-5 py-4 border-b border-zinc-800 space-y-4">
           <div className="flex gap-3">
-            <input
-              type="text"
-              value={brandPrefix}
-              onChange={(e) => setBrandPrefix(e.target.value)}
-              className="w-24 h-10 px-3 bg-zinc-800 border border-zinc-600 rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-purple-500"
-            />
+            <input type="text" value={brandPrefix} onChange={e => setBrandPrefix(e.target.value)}
+              className="w-24 h-10 px-3 bg-zinc-800 border border-zinc-600 rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-purple-500" />
             <div className="relative flex-1">
-              <select
-                value={selectedRatio}
-                onChange={(e) => setSelectedRatio(e.target.value)}
-                className="w-full h-10 px-3 bg-zinc-800 border border-zinc-600 rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer appearance-none"
-              >
-                {ratios.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
+              <select value={selectedRatio} onChange={e => setSelectedRatio(e.target.value)}
+                className="w-full h-10 px-3 bg-zinc-800 border border-zinc-600 rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer appearance-none">
+                {ratios.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
               <svg className="absolute right-3 top-3 w-4 h-4 text-zinc-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
           </div>
-
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <ToggleSwitch checked={curatedOnly} onChange={() => setCuratedOnly(!curatedOnly)} />
@@ -526,36 +568,26 @@ export function Generate() {
               <span className="text-xs text-zinc-300">Music</span>
             </div>
           </div>
-
           <div>
             <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min="3"
-                max="10"
-                value={columnCount}
-                onChange={(e) => setColumnCount(parseInt(e.target.value))}
-                className="flex-1 h-1 rounded-full bg-zinc-700 accent-indigo-500 cursor-pointer"
-              />
+              <input type="range" min="3" max="10" value={columnCount} onChange={e => setColumnCount(parseInt(e.target.value))}
+                className="flex-1 h-1 rounded-full bg-zinc-700 accent-indigo-500 cursor-pointer" />
               <span className="text-2xl font-bold text-zinc-100 tabular-nums w-8 text-right">{columnCount}</span>
             </div>
           </div>
         </div>
 
-        {/* AVAILABLE CLIPS */}
+        {/* Available clips */}
         <div className="px-5 py-4 border-b border-zinc-800 space-y-3">
-          <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-medium">
-            Available Clips
-          </h3>
+          <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-medium">Available Clips</h3>
           <div className="space-y-2">
             {(['hook', 'body', 'product', 'cta'] as const).map(type => {
-              const color = shotTypeColor[type];
-              const filtered = clipsByType[type].length;
+              const filtered = clipsByType[type === 'hook' ? 'HOK' : type === 'body' ? 'BOD' : type === 'product' ? 'PRO' : 'CTA'].length;
               const total = allClipsByType[type].length;
               return (
                 <div key={type} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: shotTypeColorDot[type] }} />
                     <span className="text-zinc-200 font-medium capitalize">{type}</span>
                   </div>
                   <span className="text-zinc-400 tabular-nums">{filtered} <span className="text-zinc-600">/ {total}</span></span>
@@ -568,40 +600,30 @@ export function Generate() {
             </div>
           </div>
           <div className="text-[11px] text-zinc-600">
-            ~{comboCount.toLocaleString()} combos · {aidaStructure?.label || ''} · AIDA enforced
+            ~{comboCount.toLocaleString()} combos · ~{aidaTemplate?.label.match(/\d+/)?.[0] || '10'}.3s each · 3:1 action:static
           </div>
         </div>
 
-        {/* GENERATE BUTTON */}
+        {/* Generate button */}
         <div className="px-5 py-5">
-          <button
-            onClick={handleGenerate}
-            disabled={generating || !hasApproved}
-            className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-base font-bold transition-colors flex items-center justify-center gap-2"
-          >
+          <button onClick={handleGenerate}
+            disabled={generating || !hasApproved || selectedCount === 0}
+            className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-base font-bold transition-colors flex items-center justify-center gap-2">
             {generating ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Generating...
-              </>
+              <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Generating...</>
             ) : (
-              <>
-                <Zap className="w-4 h-4" />
-                Generate {columnCount} Variations
-              </>
+              <><Zap className="w-4 h-4" />Generate {selectedCount} Variations</>
             )}
           </button>
-          {!hasApproved && (
-            <p className="text-[10px] text-amber-500 text-center mt-2">Approve clips in Curate first</p>
-          )}
+          {!hasApproved && <p className="text-[10px] text-amber-500 text-center mt-2">Approve clips in Curate first</p>}
         </div>
       </div>
 
-      {/* MAIN CONTENT — Preview Grid */}
-      <div className="flex-1 overflow-auto flex flex-col bg-zinc-950">
+      {/* ═══ MAIN CONTENT — V1-style variation cards ═══ */}
+      <div className="flex-1 overflow-auto flex flex-col bg-[#0d0d14]">
         {/* Re-iterate banner */}
         {reiterateContext && (
-          <div className="mx-6 mt-6 p-4 bg-amber-600/10 border border-amber-600/30 rounded-lg">
+          <div className="mx-6 mt-4 p-4 bg-amber-600/10 border border-amber-600/30 rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-amber-400 text-sm font-semibold">Re-iterating: {reiterateContext.adName}</span>
@@ -609,136 +631,126 @@ export function Generate() {
                   {reiterateContext.originalRoas.toFixed(1)}x ROAS — {reiterateContext.status}
                 </span>
               </div>
-              <button onClick={() => setReiterateContext(null)} className="text-zinc-500 hover:text-zinc-300 text-xs">
-                Dismiss
-              </button>
+              <button onClick={() => setReiterateContext(null)} className="text-zinc-500 hover:text-zinc-300 text-xs">Dismiss</button>
             </div>
-            <div className="text-[11px] text-zinc-400 mb-2">Performance insights suggest:</div>
             <ul className="space-y-1">
               {reiterateContext.suggestions.map((s, i) => (
-                <li key={i} className="text-[11px] text-zinc-300 flex items-start gap-2">
-                  <span className="text-amber-400 shrink-0">→</span> {s}
-                </li>
+                <li key={i} className="text-[11px] text-zinc-300 flex items-start gap-2"><span className="text-amber-400 shrink-0">→</span> {s}</li>
               ))}
             </ul>
           </div>
         )}
 
-        {/* Header bar */}
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-semibold text-zinc-200">
-              Variation Preview
-            </h3>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 tabular-nums">
-              {previewVariations.length} variations
+        {/* Top bar — selection count + strategy pills + actions */}
+        {variations.length > 0 && (
+          <div className="px-6 py-3 border-b border-zinc-800/60 flex items-center gap-4 flex-shrink-0 flex-wrap">
+            {/* Select all checkbox */}
+            <button onClick={toggleSelectAll}
+              className={`w-7 h-7 rounded-md border-2 flex items-center justify-center transition-colors ${
+                selectedCount === variations.length ? 'bg-purple-600 border-purple-600' : 'border-zinc-600 hover:border-zinc-500'
+              }`}>
+              {selectedCount === variations.length && <Check className="w-4 h-4 text-white" />}
+            </button>
+            <span className="text-sm font-semibold text-zinc-200">
+              {selectedCount}/{variations.length} selected
             </span>
-          </div>
-          <button
-            onClick={handleRegenerate}
-            disabled={!hasApproved}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-purple-400 hover:text-purple-300 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <Shuffle className="w-3 h-3" />
-            Re-shuffle
-          </button>
-        </div>
 
-        {previewVariations.length > 0 ? (
-          <div className="flex-1 overflow-auto p-6">
-            {/* AIDA structure legend */}
-            <div className="mb-5 flex items-center gap-4 flex-wrap">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider">AIDA Structure:</span>
-              {aidaStructure?.slots.map((slot, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: shotTypeColor[slot.type] }} />
-                  <span className="text-[10px] text-zinc-400">{slot.phase}</span>
-                  <span className="text-[9px] text-zinc-600">({slot.type})</span>
-                </div>
-              ))}
+            {/* Strategy pills */}
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-full bg-teal-500/15 border border-teal-500/30 text-[11px] text-teal-300 font-medium">{personaData?.name}</span>
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 font-medium">{pillarData?.name}</span>
+              <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-[11px] text-amber-300 font-medium">{formatData?.name}</span>
             </div>
 
-            {/* Variation grid */}
-            <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(previewVariations.length, 5)}, 1fr)` }}>
-              {previewVariations.map((v) => (
-                <div
-                  key={v.idx}
-                  className="rounded-lg border border-zinc-800 bg-zinc-900/50 overflow-hidden hover:border-zinc-700 transition-colors"
-                >
-                  {/* Variation header */}
-                  <div className="px-3 py-2 border-b border-zinc-800/50 flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-zinc-200 truncate">V{v.idx + 1}</span>
-                    <span className="text-[9px] text-zinc-600 tabular-nums">{v.totalDuration}s</span>
-                  </div>
+            <span className="text-[11px] text-zinc-500 tabular-nums">~{aidaTemplate?.label.match(/\d+/)?.[0] || '10'}.3s</span>
 
-                  {/* AIDA timeline bar */}
-                  <div className="flex h-1.5">
-                    {aidaStructure?.slots.map((slot, si) => (
-                      <div
-                        key={si}
-                        className="h-full"
-                        style={{
-                          backgroundColor: shotTypeColor[slot.type],
-                          width: `${slot.weight * 100}%`,
-                          opacity: 0.7,
-                        }}
-                      />
-                    ))}
-                  </div>
+            {/* Spacer */}
+            <div className="flex-1" />
 
-                  {/* Clip assignments */}
-                  <div className="p-3 space-y-2">
-                    {[
-                      { label: 'Hook', clip: v.hookClip, color: '#ff6b6b' },
-                      { label: 'Body', clip: v.bodyClip, color: '#6b8aff' },
-                      { label: 'Product', clip: v.productClip, color: '#f0a030' },
-                      { label: 'CTA', clip: v.ctaClip, color: '#4ecdc4' },
-                    ].map(({ label, clip, color }) => (
-                      <div key={label} className="flex items-center gap-2">
-                        <div className="w-1.5 h-6 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[9px] uppercase tracking-wider font-medium" style={{ color }}>{label}</div>
-                          <div className="text-[10px] text-zinc-300 truncate">
-                            {clip ? clip.name : <span className="text-zinc-600 italic">none</span>}
+            {/* Actions */}
+            <button onClick={handleRegenerate} disabled={!hasApproved}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors">
+              <Shuffle className="w-3 h-3" /> Re-shuffle
+            </button>
+            <button onClick={handleExportBatch} disabled={selectedCount === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors disabled:opacity-30">
+              <Download className="w-3 h-3" /> Export Batch
+            </button>
+            <button onClick={handleSaveToRecipes} disabled={selectedCount === 0}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors font-semibold disabled:opacity-30">
+              <BookOpen className="w-3 h-3" /> Save {selectedCount} to Recipes
+            </button>
+          </div>
+        )}
+
+        {/* Variation cards */}
+        {variations.length > 0 ? (
+          <div className="flex-1 overflow-auto p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {variations.map(v => (
+                <div key={v.idx}
+                  className={`rounded-xl border overflow-hidden transition-colors ${
+                    v.selected ? 'border-purple-500/40 bg-[#13131d]' : 'border-zinc-800/50 bg-[#111118]'
+                  }`}>
+                  {/* Card header — checkbox + slots */}
+                  <div className="flex items-stretch">
+                    {/* Selection checkbox */}
+                    <button onClick={() => toggleVariationSelection(v.idx)}
+                      className={`w-12 flex items-center justify-center border-r border-zinc-800/40 transition-colors ${
+                        v.selected ? 'bg-purple-600/20' : 'hover:bg-zinc-800/30'
+                      }`}>
+                      <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
+                        v.selected ? 'bg-purple-600 border-purple-600' : 'border-zinc-600'
+                      }`}>
+                        {v.selected && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                    </button>
+
+                    {/* AIDA slots — the horizontal strip */}
+                    <div className="flex-1 flex">
+                      {v.slots.map((slot, si) => (
+                        <div key={si} className={`flex-1 min-w-0 border-r border-zinc-800/30 last:border-r-0`}>
+                          {/* Phase + Type header */}
+                          <div className={`px-1.5 py-1 text-center ${SLOT_HEADER_BG[slot.phase]}`}>
+                            <div className="text-[8px] font-bold text-white/90 uppercase tracking-wider">{slot.phase}</div>
+                            <div className="text-[7px] text-white/60 uppercase">{slot.type}</div>
+                          </div>
+                          {/* Clip name */}
+                          <div className={`px-1.5 py-2 text-center ${SLOT_BG[slot.type]}`}>
+                            <div className="text-[9px] text-white/80 font-medium truncate">
+                              {clipLabel(slot.clip)}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Text overlays strip */}
+                  <div className="px-3 py-2 flex gap-2 overflow-x-auto border-t border-zinc-800/30">
+                    {v.overlays.slice(0, 6).map((overlay, oi) => (
+                      <span key={oi} className="flex-shrink-0 text-[9px] px-2 py-0.5 rounded bg-zinc-800/60 text-zinc-400 border border-zinc-700/40 truncate max-w-[140px]">
+                        &quot;{overlay.text}&quot;
+                      </span>
                     ))}
                   </div>
 
-                  {/* Footer stats */}
-                  <div className="px-3 py-2 border-t border-zinc-800/50 flex items-center justify-between">
-                    <span className="text-[9px] text-zinc-500">Action:Static</span>
-                    <span className="text-[9px] text-zinc-400 tabular-nums">{v.actionRatio}:1</span>
+                  {/* Footer — name + music + actions */}
+                  <div className="px-3 py-2 border-t border-zinc-800/30 flex items-center gap-3">
+                    <span className="text-[11px] font-semibold text-zinc-200 truncate">{v.name}</span>
+                    {v.musicTrack && (
+                      <span className="text-[9px] text-zinc-500 truncate">♫ {v.musicTrack}</span>
+                    )}
+                    <div className="flex-1" />
+                    <button className="text-[10px] text-purple-400 hover:text-purple-300 transition-colors font-medium">
+                      Use as base
+                    </button>
+                    <button className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors">
+                      More
+                    </button>
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* Summary footer */}
-            <div className="mt-6 p-4 rounded-lg bg-zinc-900 border border-zinc-800">
-              <div className="flex items-center gap-6 text-[11px]">
-                <div>
-                  <span className="text-zinc-500">Persona:</span>{' '}
-                  <span className="text-teal-400 font-medium">{personaData?.name}</span>
-                </div>
-                <div>
-                  <span className="text-zinc-500">Pillar:</span>{' '}
-                  <span className="text-emerald-400 font-medium">{pillarData?.name}</span>
-                </div>
-                <div>
-                  <span className="text-zinc-500">Format:</span>{' '}
-                  <span className="text-amber-400 font-medium">{formatData?.name}</span>
-                </div>
-                <div>
-                  <span className="text-zinc-500">Ratio:</span>{' '}
-                  <span className="text-zinc-300">{selectedRatio}</span>
-                </div>
-                <div className="ml-auto flex items-center gap-1.5 text-zinc-400">
-                  <ChevronRight className="w-3 h-3" />
-                  <span>Generate to push to Review</span>
-                </div>
-              </div>
             </div>
           </div>
         ) : (
@@ -751,37 +763,12 @@ export function Generate() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-zinc-100 mb-3">
-                Strategy-Driven Generation
-              </h2>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-8">
+              <h2 className="text-xl font-bold text-zinc-100 mb-3">Strategy-Driven Generation</h2>
+              <p className="text-sm text-zinc-400 leading-relaxed">
                 Approve clips in the Curate tab to see a live preview of variations here.
-                Each variation follows the AIDA framework with enforced action-to-static
-                shot ratios and persona-aligned clip selection.
+                Each variation follows the AIDA framework with auto-generated text overlays
+                and persona-aligned clip selection.
               </p>
-
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-left max-w-md mx-auto">
-                <div className="text-xs text-zinc-500 mb-4">Current Strategy:</div>
-                <div className="space-y-2">
-                  <div className="flex gap-3">
-                    <span className="text-teal-400 text-sm font-semibold w-16">Persona:</span>
-                    <span className="text-zinc-100 text-sm font-semibold">{personaData?.name}</span>
-                  </div>
-                  <div className="flex gap-3">
-                    <span className="text-emerald-400 text-sm font-semibold w-16">Pillar:</span>
-                    <span className="text-zinc-100 text-sm font-semibold">{pillarData?.name}</span>
-                  </div>
-                  <div className="flex gap-3">
-                    <span className="text-amber-400 text-sm font-semibold w-16">Format:</span>
-                    <span className="text-zinc-100 text-sm font-semibold">{formatData?.name}</span>
-                  </div>
-                </div>
-                <div className="mt-4 pt-3 border-t border-zinc-800 space-y-1">
-                  <div className="text-[11px] text-zinc-500">
-                    AIDA: {aidaStructure?.slots.map(s => s.phase.slice(0, 3)).join(' → ')}
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         )}
