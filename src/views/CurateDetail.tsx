@@ -91,7 +91,7 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
   const [activePreset, setActivePreset] = useState(clip.colour_grade ? 'Custom' : 'Original');
   const [rotation, setRotation] = useState(0);
   const [targetRatio, setTargetRatio] = useState<string>('Original');
-  const [showColour, setShowColour] = useState(false);
+  const [showColour, setShowColour] = useState(true);
   const [clipType, setClipType] = useState(clip.type || 'body');
 
   /* ── Nav index ── */
@@ -135,10 +135,11 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
   /* ── Generate thumbnail strip from video ── */
   useEffect(() => {
     if (!localSrc) { setThumbnails([]); return; }
+    let cancelled = false;
     const vid = document.createElement('video');
-    vid.crossOrigin = 'anonymous';
     vid.preload = 'auto';
     vid.muted = true;
+    vid.playsInline = true;
     vid.src = localSrc;
 
     const frames: string[] = [];
@@ -146,35 +147,41 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
     let currentFrame = 0;
 
     vid.addEventListener('loadedmetadata', () => {
+      if (cancelled) return;
       const step = vid.duration / numFrames;
-      vid.currentTime = 0;
+      vid.currentTime = step * 0.5; // start slightly into first frame
 
       const captureFrame = () => {
+        if (cancelled) return;
         if (currentFrame >= numFrames) {
-          setThumbnails(frames);
+          setThumbnails([...frames]);
           return;
         }
         try {
           const canvas = document.createElement('canvas');
-          canvas.width = 120;
-          canvas.height = 68;
+          canvas.width = 160;
+          canvas.height = 90;
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
-            frames.push(canvas.toDataURL('image/jpeg', 0.5));
+            frames.push(canvas.toDataURL('image/jpeg', 0.6));
           }
         } catch {
-          // CORS or other error — skip frame
+          // skip frame on error
         }
         currentFrame++;
-        vid.currentTime = Math.min(currentFrame * step, vid.duration - 0.01);
+        if (currentFrame < numFrames) {
+          vid.currentTime = Math.min(currentFrame * step + 0.01, vid.duration - 0.05);
+        } else {
+          setThumbnails([...frames]);
+        }
       };
 
       vid.addEventListener('seeked', captureFrame);
-      captureFrame();
+      vid.currentTime = 0.1; // trigger first seek
     });
 
-    return () => { vid.src = ''; };
+    return () => { cancelled = true; vid.src = ''; };
   }, [localSrc]);
 
   /* ── Video time tracking ── */
@@ -434,17 +441,14 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
                 ref={videoRef}
                 key={clip.id}
                 src={localSrc}
+                controls
+                playsInline
                 className="max-w-full max-h-full object-contain rounded"
                 style={{
                   filter: filterStyle,
                   transform: rotation ? `rotate(${rotation}deg)` : undefined,
                 }}
                 preload="auto"
-                onClick={() => {
-                  if (videoRef.current) {
-                    videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
-                  }
-                }}
               />
             ) : driveId ? (
               <iframe
@@ -460,17 +464,10 @@ export function CurateDetail({ clip, clipList, onBack, onNavigate }: CurateDetai
               <div className="text-zinc-600 text-sm">{clip.name}</div>
             )}
 
-            {/* Play/Pause overlay */}
+            {/* Play status indicator — non-blocking */}
             {localSrc && !playing && (
-              <div
-                className="absolute inset-0 flex items-center justify-center cursor-pointer"
-                onClick={() => videoRef.current?.play()}
-              >
-                <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm">
-                  <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
+              <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 rounded text-[10px] text-zinc-300 pointer-events-none">
+                Paused — Space to play
               </div>
             )}
           </div>
