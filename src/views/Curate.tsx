@@ -45,7 +45,7 @@ interface Segment {
 
 export function Curate() {
   const { clips, setActiveTab, updateClip, user, workspace, fetchClips } = useStore();
-  const [showColourPanel, setShowColourPanel] = useState(false);
+  const [_showColourPanel, _setShowColourPanel] = useState(false);
   const [colourGrade, setColourGrade] = useState<ColourGrade>(COLOUR_GRADE_PRESETS.Original);
   const [activePreset, setActivePreset] = useState('Original');
   const [trimIn, setTrimIn] = useState<number | null>(null);
@@ -445,7 +445,9 @@ export function Curate() {
     }
   };
 
-  const ColourGradePanel = () => (
+  // @ts-expect-error - Colour grade panel temporarily hidden during grid redesign
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _ColourGradePanel = () => (
     <div className="w-64 border-l border-zinc-800 bg-zinc-900/50 overflow-y-auto p-4 space-y-4">
       {/* Colour Grade Section */}
       <div className="space-y-3">
@@ -738,12 +740,64 @@ export function Curate() {
         </div>
       </div>
 
-      {/* Main content area — left: video+controls, right: clip list */}
+      {/* Main content area — V1 style: grid of clips, click to curate */}
       <div className="flex flex-1 overflow-hidden">
-        {/* LEFT: Curation panel */}
-        <div className="flex-1 overflow-auto p-6">
-          {firstPendingClip ? (
-            <div className="max-w-2xl space-y-6">
+        {/* CLIP GRID — matching V1's Curate layout */}
+        <div className="flex-1 overflow-auto p-4">
+          {filteredClips.length > 0 ? (
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+              {filteredClips.map((clip) => {
+                const clipType = (clip.type || 'body').toLowerCase();
+                const typeBg = clipType === 'hook' ? 'bg-[#ff6b6b]' : clipType === 'product' ? 'bg-[#f0a030]' : clipType === 'cta' ? 'bg-[#4ecdc4]' : 'bg-[#6b8aff]';
+                const statusText = clip.approved ? 'APPROVED' : clip.rejected ? 'REJECTED' : 'PENDING';
+                const statusColor = clip.approved ? 'bg-emerald-600 text-white' : clip.rejected ? 'bg-red-600 text-white' : 'bg-amber-600 text-white';
+                const isActive = clip.id === selectedClipId;
+                return (
+                  <div
+                    key={clip.id}
+                    onClick={() => setSelectedClipId(clip.id)}
+                    className={`group relative bg-zinc-900 border rounded-lg overflow-hidden cursor-pointer transition-all ${
+                      isActive ? 'ring-2 ring-purple-500 border-purple-500' : 'border-zinc-800/60 hover:border-zinc-600'
+                    }`}
+                  >
+                    <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-zinc-700/50 to-zinc-800 flex items-center justify-center">
+                      {clip.thumbnail_url ? (
+                        <img src={clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[10px] text-zinc-600 px-2 text-center truncate">{clip.name}</span>
+                      )}
+                      {/* Status badge — top-left */}
+                      <div className={`absolute top-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-sm ${statusColor}`}>
+                        {statusText}
+                      </div>
+                      {/* Type badge — top-right */}
+                      <div className={`absolute top-1.5 right-1.5 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-sm uppercase ${typeBg}`}>
+                        {clipType}
+                      </div>
+                    </div>
+                    <div className="p-2">
+                      <div className="text-xs text-zinc-300 truncate">{clip.name}</div>
+                      <div className="text-[10px] text-zinc-600">{clip.duration.toFixed(1)}s · {clip.category || 'We Transfer'}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+              <p className="text-sm">No clips match this filter</p>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Curation detail panel — appears when a clip is selected */}
+        {firstPendingClip && selectedClipId && (
+          <div className="w-96 border-l border-zinc-800 bg-zinc-900/50 overflow-y-auto flex-shrink-0">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-100 truncate">{firstPendingClip.name}</h3>
+              <button onClick={() => setSelectedClipId(null)} className="text-zinc-500 hover:text-zinc-300 text-xs">Close</button>
+            </div>
+            <div className="p-4 space-y-4">
               {/* Video player area */}
               <div className="space-y-4">
                 <div className="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center border border-zinc-800" style={filterStyle}>
@@ -1015,69 +1069,8 @@ export function Curate() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full">
-              <p className="text-sm text-zinc-500">No clips to review</p>
-            </div>
-          )}
-        </div>
-
-        {/* Colour Grade Panel Toggle Button */}
-        {firstPendingClip && (
-          <button
-            onClick={() => setShowColourPanel(!showColourPanel)}
-            className="w-8 flex items-center justify-center bg-zinc-900/50 border-l border-zinc-800 hover:bg-zinc-800 transition-colors flex-shrink-0"
-          >
-            <span className="text-[10px] font-medium text-zinc-400">C</span>
-          </button>
+          </div>
         )}
-
-        {/* Colour Grade Panel */}
-        {firstPendingClip && showColourPanel && <ColourGradePanel />}
-
-        {/* RIGHT: Scrollable clip list sidebar */}
-        <div className="w-72 border-l border-zinc-800 bg-zinc-900/30 overflow-y-auto flex-shrink-0">
-          <div className="p-3 border-b border-zinc-800 text-xs text-zinc-400">
-            {filteredClips.length} clips · {currentClipIndex >= 0 ? currentClipIndex + 1 : 0} of {filteredClips.length}
-          </div>
-          <div className="divide-y divide-zinc-800/50">
-            {filteredClips.map((clip) => {
-              const isActive = clip.id === firstPendingClip?.id;
-              const clipType = (clip.type || 'body').toLowerCase();
-              const typeBg = clipType === 'hook' ? 'bg-[#ff6b6b]' : clipType === 'product' ? 'bg-[#f0a030]' : clipType === 'cta' ? 'bg-[#4ecdc4]' : 'bg-[#6b8aff]';
-              return (
-                <div
-                  key={clip.id}
-                  onClick={() => setSelectedClipId(clip.id)}
-                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
-                    isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
-                  }`}
-                >
-                  {/* Thumbnail mini */}
-                  <div className="w-16 h-10 rounded bg-zinc-800 flex-shrink-0 flex items-center justify-center overflow-hidden relative">
-                    {clip.thumbnail_url ? (
-                      <img src={clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-[7px] text-zinc-600 text-center px-1 truncate">{clip.name.slice(0, 12)}</span>
-                    )}
-                    <div className={`absolute top-0.5 left-0.5 text-white text-[6px] font-bold px-1 py-0 rounded-sm uppercase ${typeBg}`}>
-                      {clipType}
-                    </div>
-                  </div>
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-zinc-300 truncate">{clip.name}</div>
-                    <div className="text-[9px] text-zinc-600">{clip.duration.toFixed(1)}s · {clip.ratio}</div>
-                  </div>
-                  {/* Status dot */}
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    clip.approved ? 'bg-emerald-500' : clip.rejected ? 'bg-red-500' : 'bg-zinc-600'
-                  }`} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </div>
   );
