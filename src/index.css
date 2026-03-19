@@ -8,14 +8,14 @@
   --color-ck-card: #1a1a24;
   --color-ck-elevated: #222230;
 
-  /* Keep zinc for Tailwind compatibility */
-  --color-zinc-950: #0a0a0f;
-  --color-zinc-900: #111118;
-  --color-zinc-800: #222230;
-  --color-zinc-700: #333340;
-  --color-zinc-600: #666678;
+  /* Standard Tailwind v3 zinc palette (matches V1 exactly) */
+  --color-zinc-950: #09090b;
+  --color-zinc-900: #18181b;
+  --color-zinc-800: #27272a;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-600: #52525b;
   --color-zinc-500: #71717a;
-  --color-zinc-400: #a0a0b0;
+  --color-zinc-400: #a1a1aa;
   --color-zinc-300: #d4d4d8;
   --color-zinc-200: #e4e4e7;
   --color-zinc-100: #f4f4f5;
@@ -35,29 +35,33 @@
   /* Accent */
   --color-accent: #7c3aed;
 
-  /* Standard Tailwind colors we still use */
+  /* Standard Tailwind v3 colors (restore defaults to match V1) */
   --color-indigo-400: #818cf8;
   --color-indigo-500: #6366f1;
-  --color-indigo-600: #7c3aed;
-  --color-orange-500: #ff6b6b;
+  --color-indigo-600: #4f46e5;
+  --color-orange-500: #f97316;
   --color-green-500: #22c55e;
   --color-green-600: #16a34a;
+  --color-red-400: #f87171;
   --color-red-500: #ef4444;
   --color-red-600: #dc2626;
+  --color-amber-400: #fbbf24;
   --color-amber-500: #f59e0b;
   --color-yellow-500: #eab308;
-  --color-purple-500: #7c3aed;
+  --color-purple-400: #a78bfa;
+  --color-purple-500: #8b5cf6;
   --color-purple-600: #7c3aed;
-  --color-cyan-500: #4ecdc4;
-  --color-teal-400: #4ecdc4;
-  --color-teal-500: #4ecdc4;
+  --color-cyan-500: #06b6d4;
+  --color-teal-400: #2dd4bf;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
   --color-pink-500: #ec4899;
-  --color-blue-400: #6b8aff;
-  --color-blue-500: #6b8aff;
-  --color-blue-600: #3b82f6;
-  --color-emerald-400: #22c55e;
-  --color-emerald-500: #22c55e;
-  --color-emerald-600: #16a34a;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
