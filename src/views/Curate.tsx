@@ -699,9 +699,8 @@ export function Curate() {
   }
 
   // With clips loaded - show player
-  const filterStyle = {
-    filter: `brightness(${colourGrade.brightness / 100}) contrast(${colourGrade.contrast / 100}) saturate(${colourGrade.saturate / 100}) hue-rotate(${colourGrade.temperature * 1.5}deg)`,
-  };
+  // @ts-expect-error — colour grade filter temporarily unused during grid redesign
+  const _filterStyle = `brightness(${colourGrade.brightness / 100}) contrast(${colourGrade.contrast / 100}) saturate(${colourGrade.saturate / 100}) hue-rotate(${colourGrade.temperature * 1.5}deg)`;
 
   return (
     <div className="flex flex-col h-full bg-zinc-950">
@@ -811,11 +810,18 @@ export function Curate() {
             </div>
             <div className="p-4 space-y-4">
               {/* Video player area */}
-              <div className="space-y-4">
-                <div className="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center border border-zinc-800" style={filterStyle}>
-                  {firstPendingClip.thumbnail_url ? (
+              <div className="space-y-2">
+                <div className="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center border border-zinc-800">
+                  {firstPendingClip.drive_file_id ? (
+                    <iframe
+                      src={`https://drive.google.com/file/d/${firstPendingClip.drive_file_id}/preview`}
+                      className="w-full h-full"
+                      allow="autoplay"
+                      allowFullScreen
+                    />
+                  ) : firstPendingClip.thumbnail_url || firstPendingClip.drive_file_id ? (
                     <img
-                      src={firstPendingClip.thumbnail_url}
+                      src={firstPendingClip.thumbnail_url || driveThumbUrl(firstPendingClip.drive_file_id!)}
                       alt={firstPendingClip.name}
                       className="w-full h-full object-cover"
                     />

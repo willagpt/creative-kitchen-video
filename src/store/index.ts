@@ -152,12 +152,17 @@ export const useStore = create<AppState>((set) => ({
         .order('name', { ascending: true });
 
       if (error) throw error;
-      // Deduplicate by name — keep the most recently updated version
+      // Deduplicate: exact name match first, then normalize to catch " copy", "(copy)" variants
       const seen = new Map<string, Clip>();
       for (const clip of (data as Clip[]) || []) {
-        const existing = seen.get(clip.name);
+        // Normalize: strip " copy", " (copy)", trailing " food porn", " food", extra whitespace
+        const normName = clip.name
+          .replace(/\s*\(copy\)\s*/gi, '')
+          .replace(/\s+copy\s*/gi, '')
+          .trim();
+        const existing = seen.get(normName);
         if (!existing || (clip.id > existing.id)) {
-          seen.set(clip.name, clip);
+          seen.set(normName, clip);
         }
       }
       set({ clips: Array.from(seen.values()), loading: false });
