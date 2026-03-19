@@ -45,7 +45,6 @@ interface Segment {
 
 export function Curate() {
   const { clips, setActiveTab, updateClip, user, workspace, fetchClips } = useStore();
-  const [clipsLoaded, setClipsLoaded] = useState(false);
   const [showColourPanel, setShowColourPanel] = useState(false);
   const [colourGrade, setColourGrade] = useState<ColourGrade>(COLOUR_GRADE_PRESETS.Original);
   const [activePreset, setActivePreset] = useState('Original');
@@ -55,6 +54,8 @@ export function Curate() {
   const [notes, setNotes] = useState<string>('');
   const [starRating, setStarRating] = useState(0);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [selectedClipId, setSelectedClipId] = useState<number | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
 
   useEffect(() => {
     setActiveTab('curate');
@@ -70,10 +71,21 @@ export function Curate() {
   const curatedCount = approvedCount + rejectedCount;
   const curatedPercent = allCount > 0 ? Math.round((curatedCount / allCount) * 100) : 0;
 
-  // Get first pending clip for display
-  const firstPendingClip = clips.find((c) => !c.approved && !c.rejected && !c.archived);
+  // Filter clips based on active tab
+  const filteredClips = clips.filter((c) => {
+    if (c.archived) return false;
+    if (activeFilter === 'pending') return !c.approved && !c.rejected;
+    if (activeFilter === 'approved') return c.approved;
+    if (activeFilter === 'rejected') return c.rejected;
+    return true; // 'all'
+  });
+
+  // Get selected clip or first in filtered list
   const pendingClips = clips.filter((c) => !c.approved && !c.rejected && !c.archived);
-  const currentClipIndex = pendingClips.indexOf(firstPendingClip || pendingClips[0]);
+  const firstPendingClip = selectedClipId
+    ? clips.find((c) => c.id === selectedClipId) || filteredClips[0]
+    : filteredClips[0];
+  const currentClipIndex = filteredClips.indexOf(firstPendingClip || filteredClips[0]);
 
   useEffect(() => {
     if (firstPendingClip) {
@@ -602,7 +614,7 @@ export function Curate() {
     </button>
   );
 
-  if (!clipsLoaded && clips.length === 0) {
+  if (clips.length === 0) {
     return (
       <div className="flex flex-col h-full bg-zinc-950 p-6">
         {/* Header */}
@@ -655,7 +667,7 @@ export function Curate() {
 
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => setClipsLoaded(true)}
+                onClick={() => { /* Load clips from folder */ }}
                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition-colors"
               >
                 Select Clips Folder
@@ -701,10 +713,10 @@ export function Curate() {
 
       {/* Tabs + filters on same row */}
       <div className="flex gap-4 px-6 border-b border-zinc-800 pb-0 items-center">
-        <TabButton label="Pending" count={pendingCount} active={true} onClick={() => {}} />
-        <TabButton label="Approved" count={approvedCount} active={false} onClick={() => {}} />
-        <TabButton label="Rejected" count={rejectedCount} active={false} onClick={() => {}} />
-        <TabButton label="All" count={allCount} active={false} onClick={() => {}} />
+        <TabButton label="Pending" count={pendingCount} active={activeFilter === 'pending'} onClick={() => { setActiveFilter('pending'); setSelectedClipId(null); }} />
+        <TabButton label="Approved" count={approvedCount} active={activeFilter === 'approved'} onClick={() => { setActiveFilter('approved'); setSelectedClipId(null); }} />
+        <TabButton label="Rejected" count={rejectedCount} active={activeFilter === 'rejected'} onClick={() => { setActiveFilter('rejected'); setSelectedClipId(null); }} />
+        <TabButton label="All" count={allCount} active={activeFilter === 'all'} onClick={() => { setActiveFilter('all'); setSelectedClipId(null); }} />
 
         {/* Right side buttons and indicator */}
         <div className="ml-auto flex items-center gap-3">
@@ -1026,16 +1038,17 @@ export function Curate() {
         {/* RIGHT: Scrollable clip list sidebar */}
         <div className="w-72 border-l border-zinc-800 bg-zinc-900/30 overflow-y-auto flex-shrink-0">
           <div className="p-3 border-b border-zinc-800 text-xs text-zinc-400">
-            {pendingClips.length} clips · {currentClipIndex + 1} of {pendingClips.length}
+            {filteredClips.length} clips · {currentClipIndex >= 0 ? currentClipIndex + 1 : 0} of {filteredClips.length}
           </div>
           <div className="divide-y divide-zinc-800/50">
-            {pendingClips.map((clip) => {
+            {filteredClips.map((clip) => {
               const isActive = clip.id === firstPendingClip?.id;
               const clipType = (clip.type || 'body').toLowerCase();
               const typeBg = clipType === 'hook' ? 'bg-[#ff6b6b]' : clipType === 'product' ? 'bg-[#f0a030]' : clipType === 'cta' ? 'bg-[#4ecdc4]' : 'bg-[#6b8aff]';
               return (
                 <div
                   key={clip.id}
+                  onClick={() => setSelectedClipId(clip.id)}
                   className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
                     isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
                   }`}
