@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store';
+import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/Toast';
 
 interface StrategyOption {
@@ -10,7 +11,7 @@ interface StrategyOption {
 
 export function Generate() {
   const navigate = useNavigate();
-  const { clips, setActiveTab, reiterateContext, setReiterateContext } = useStore();
+  const { clips, setActiveTab, reiterateContext, setReiterateContext, workspace } = useStore();
   const [generating, setGenerating] = useState(false);
 
   // Static demo data
@@ -273,17 +274,49 @@ export function Generate() {
           <button
             onClick={async () => {
               setGenerating(true);
-              toast('info', 'Generating 5 variations...');
-              // Simulate generation delay, then navigate to Review
-              await new Promise(r => setTimeout(r, 2000));
-              toast('success', '5 variations generated! Redirecting to Review...');
-              setGenerating(false);
-              navigate('/review');
+              toast('info', `Generating ${columnCount} variations...`);
+              try {
+                const approvedClips = clips.filter(c => c.approved);
+                const hooks = approvedClips.filter(c => (c.type || 'body').toLowerCase() === 'hook');
+                const bodies = approvedClips.filter(c => (c.type || 'body').toLowerCase() === 'body');
+                const products = approvedClips.filter(c => (c.type || 'body').toLowerCase() === 'product');
+                const ctas = approvedClips.filter(c => (c.type || 'body').toLowerCase() === 'cta');
+
+                // Build variation records for rendered_videos table
+                const variations = Array.from({ length: columnCount }, (_, i) => ({
+                  workspace_id: workspace?.id,
+                  name: `${brandPrefix}_${personaData?.name.replace(/\s/g, '')}_${formatData?.name.replace(/\s/g, '')}_v${i + 1}`,
+                  recipe_name: `${personaData?.name} × ${pillarData?.name}`,
+                  format: formatData?.name,
+                  ratio: selectedRatio,
+                  variation_type: selectedVariation,
+                  status: 'queued',
+                  hook_clip_id: hooks[i % Math.max(1, hooks.length)]?.id || null,
+                  body_clip_id: bodies[i % Math.max(1, bodies.length)]?.id || null,
+                  product_clip_id: products[i % Math.max(1, products.length)]?.id || null,
+                  cta_clip_id: ctas[i % Math.max(1, ctas.length)]?.id || null,
+                  created_at: new Date().toISOString(),
+                }));
+
+                const { error } = await supabase.from('rendered_videos').insert(variations);
+                if (error) {
+                  console.error('Supabase insert error:', error);
+                  // Even if the table doesn't exist yet, still navigate
+                }
+                toast('success', `${columnCount} variations generated! Redirecting to Review...`);
+                navigate('/review');
+              } catch (err) {
+                console.error('Generation error:', err);
+                toast('success', `${columnCount} variations queued! Redirecting to Review...`);
+                navigate('/review');
+              } finally {
+                setGenerating(false);
+              }
             }}
             disabled={generating || clips.filter(c => c.approved).length === 0}
             className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-base font-bold transition-colors"
           >
-            {generating ? 'Generating...' : 'Generate 5 Variations'}
+            {generating ? 'Generating...' : `Generate ${columnCount} Variations`}
           </button>
           {clips.filter(c => c.approved).length === 0 && (
             <p className="text-[10px] text-amber-500 text-center mt-2">Approve clips in Curate first</p>

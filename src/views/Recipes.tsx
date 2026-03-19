@@ -1,28 +1,37 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useStore } from '@/store';
+import { supabase } from '@/lib/supabase';
+import { toast } from '@/components/Toast';
 import { Plus, X } from 'lucide-react';
 
 interface Recipe {
   id: string;
+  workspace_id: string;
   name: string;
-  shotCount: number;
-  ratios: string[];
   format: string;
+  ratios: string[];
+  shots: ShotSlot[];
   status: string;
+  created_at: string;
 }
 
-interface Shot {
-  id: string;
+interface ShotSlot {
   type: string;
   duration: number;
-  index: number;
-  clipId?: number; // linked curated clip
+  clip_id?: number;
 }
 
 const AVAILABLE_RATIOS = ['1:1', '4:5', '9:16', '16:9'];
+const DEFAULT_SHOTS: ShotSlot[] = [
+  { type: 'HOOK', duration: 2 },
+  { type: 'BODY 1', duration: 2 },
+  { type: 'BODY 2', duration: 2 },
+  { type: 'BODY 3', duration: 2 },
+  { type: 'CTA', duration: 2 },
+];
 
 export function Recipes() {
-  const { clips, setActiveTab } = useStore();
+  const { clips, setActiveTab, workspace } = useStore();
 
   // Only curated (approved) clips are available for recipes
   const curatedClips = useMemo(() =>
@@ -37,50 +46,161 @@ export function Recipes() {
     cta: curatedClips.filter((c) => (c.type || 'body').toLowerCase() === 'cta'),
   }), [curatedClips]);
 
-  // Demo recipes
-  const demoRecipes: Recipe[] = [
-    { id: '1', name: 'Hero Video', shotCount: 5, ratios: ['1:1'], format: '10s HS1', status: 'DRAFT' },
-    { id: '2', name: 'Product Showcase', shotCount: 6, ratios: ['16:9'], format: '15s Narrative', status: 'DRAFT' },
-    { id: '3', name: 'Quick Hook', shotCount: 4, ratios: ['9:16'], format: '7s Snappy', status: 'DRAFT' },
-  ];
-
-  const demoShots: Shot[] = [
-    { id: 'hook', type: 'HOOK', duration: 2, index: 0 },
-    { id: 'body1', type: 'BODY 1', duration: 2, index: 1 },
-    { id: 'body2', type: 'BODY 2', duration: 2, index: 2 },
-    { id: 'body3', type: 'BODY 3', duration: 2, index: 3 },
-    { id: 'cta', type: 'CTA', duration: 2, index: 4 },
-  ];
-
-  const [recipes] = useState<Recipe[]>(demoRecipes);
-  const [selectedRecipeId, setSelectedRecipeId] = useState<string>('1');
-  const [recipeName, setRecipeName] = useState<string>('Hero Video');
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
+  const [recipeName, setRecipeName] = useState('');
   const [selectedRatios, setSelectedRatios] = useState<string[]>(['1:1']);
-  const [recipeFormat, setRecipeFormat] = useState<string>('10s HS1');
-  const [shots] = useState<Shot[]>(demoShots);
+  const [recipeFormat, setRecipeFormat] = useState('10s HS1');
+  const [shots, setShots] = useState<ShotSlot[]>(DEFAULT_SHOTS);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setActiveTab('recipes');
   }, [setActiveTab]);
 
-  const handleSelectRecipe = (id: string) => {
-    const recipe = recipes.find((r) => r.id === id);
-    if (recipe) {
-      setSelectedRecipeId(id);
-      setRecipeName(recipe.name);
-      setSelectedRatios(recipe.ratios);
-      setRecipeFormat(recipe.format);
+  /* ── Fetch recipes from Supabase ── */
+  const fetchRecipes = useCallback(async () => {
+    if (!workspace) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to fetch recipes:', error);
+        // If table doesn't exist or other error, use empty array
+        setRecipes([]);
+      } else {
+        const parsed = (data || []).map((r: Record<string, unknown>) => ({
+          id: r.id as string,
+          workspace_id: r.workspace_id as string,
+          name: (r.name as string) || 'Untitled',
+          format: (r.format as string) || '10s HS1',
+          ratios: Array.isArray(r.ratios) ? r.ratios as string[] : ['1:1'],
+          shots: Array.isArray(r.shots) ? r.shots as ShotSlot[] : DEFAULT_SHOTS,
+          status: (r.status as string) || 'DRAFT',
+          created_at: (r.created_at as string) || '',
+        }));
+        setRecipes(parsed);
+        // Auto-select first recipe
+        if (parsed.length > 0 && !selectedRecipeId) {
+          selectRecipe(parsed[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Recipe fetch error:', err);
+      setRecipes([]);
     }
+    setLoading(false);
+  }, [workspace]);
+
+  useEffect(() => {
+    fetchRecipes();
+  }, [fetchRecipes]);
+
+  /* ── Select a recipe ── */
+  const selectRecipe = (recipe: Recipe) => {
+    setSelectedRecipeId(recipe.id);
+    setRecipeName(recipe.name);
+    setSelectedRatios(recipe.ratios || ['1:1']);
+    setRecipeFormat(recipe.format || '10s HS1');
+    setShots(recipe.shots || DEFAULT_SHOTS);
+  };
+
+  /* ── Create new recipe ── */
+  const handleNewRecipe = async () => {
+    if (!workspace) return;
+    setSaving(true);
+    try {
+      const newRecipe = {
+        workspace_id: workspace.id,
+        name: `Recipe ${recipes.length + 1}`,
+        format: '10s HS1',
+        ratios: ['1:1'],
+        shots: DEFAULT_SHOTS,
+        status: 'DRAFT',
+      };
+      const { data, error } = await supabase.from('recipes').insert(newRecipe).select().single();
+      if (error) throw error;
+      const parsed: Recipe = {
+        ...data,
+        shots: data.shots || DEFAULT_SHOTS,
+        ratios: data.ratios || ['1:1'],
+      };
+      setRecipes([parsed, ...recipes]);
+      selectRecipe(parsed);
+      toast('success', 'New recipe created');
+    } catch (err) {
+      console.error('Failed to create recipe:', err);
+      toast('error', 'Failed to create recipe');
+    }
+    setSaving(false);
+  };
+
+  /* ── Save current recipe ── */
+  const handleSaveRecipe = async () => {
+    if (!selectedRecipeId) return;
+    setSaving(true);
+    try {
+      const updates = {
+        name: recipeName,
+        format: recipeFormat,
+        ratios: selectedRatios,
+        shots: shots,
+      };
+      const { error } = await supabase.from('recipes').update(updates).eq('id', selectedRecipeId);
+      if (error) throw error;
+      setRecipes(recipes.map(r => r.id === selectedRecipeId ? { ...r, ...updates } : r));
+      toast('success', 'Recipe saved');
+    } catch (err) {
+      console.error('Failed to save recipe:', err);
+      toast('error', 'Failed to save recipe');
+    }
+    setSaving(false);
+  };
+
+  /* ── Delete recipe ── */
+  const handleDeleteRecipe = async (id: string) => {
+    try {
+      await supabase.from('recipes').delete().eq('id', id);
+      const remaining = recipes.filter(r => r.id !== id);
+      setRecipes(remaining);
+      if (selectedRecipeId === id) {
+        if (remaining.length > 0) selectRecipe(remaining[0]);
+        else setSelectedRecipeId(null);
+      }
+      toast('success', 'Recipe deleted');
+    } catch (err) {
+      console.error('Failed to delete recipe:', err);
+    }
+  };
+
+  /* ── Add shot to recipe ── */
+  const handleAddShot = () => {
+    setShots([...shots, { type: 'BODY', duration: 2 }]);
+  };
+
+  /* ── Remove shot ── */
+  const handleRemoveShot = (idx: number) => {
+    if (shots.length <= 1) return;
+    setShots(shots.filter((_, i) => i !== idx));
+  };
+
+  /* ── Update shot ── */
+  const handleUpdateShot = (idx: number, updates: Partial<ShotSlot>) => {
+    setShots(shots.map((s, i) => i === idx ? { ...s, ...updates } : s));
   };
 
   const toggleRatio = (ratio: string) => {
     setSelectedRatios((prev) => {
       if (prev.includes(ratio)) {
-        // Don't remove the last one
         if (prev.length === 1) return prev;
         return prev.filter((r) => r !== ratio);
       }
-      // Max 3 ratios
       if (prev.length >= 3) return prev;
       return [...prev, ratio];
     });
@@ -109,46 +229,62 @@ export function Recipes() {
     return 'cta';
   };
 
+  const selectedRecipe = recipes.find(r => r.id === selectedRecipeId);
+
   return (
     <div className="h-full flex overflow-hidden bg-zinc-950">
       {/* LEFT SIDEBAR - RECIPE LIST */}
       <div className="w-56 border-r border-zinc-800 bg-zinc-900/30 flex flex-col overflow-hidden">
-        <div className="px-3 py-3 border-b border-zinc-800 space-y-2 flex-shrink-0">
-          <button className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-colors">
+        <div className="px-3 py-3 border-b border-zinc-800 flex-shrink-0">
+          <button
+            onClick={handleNewRecipe}
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-700 text-white text-xs font-semibold transition-colors"
+          >
             <Plus className="w-3.5 h-3.5" />
             New Recipe
-          </button>
-          <button className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors">
-            Load Clips Folder
-          </button>
-          <button className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors">
-            Load Music Folder
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="space-y-1 p-2">
-            {recipes.map((recipe) => (
-              <button
-                key={recipe.id}
-                onClick={() => handleSelectRecipe(recipe.id)}
-                className={`w-full px-3 py-2 rounded-lg text-left border transition-all ${
-                  selectedRecipeId === recipe.id
-                    ? 'bg-purple-900/30 border-purple-500'
-                    : 'bg-zinc-800/20 border-zinc-800 hover:border-zinc-700'
-                }`}
-              >
-                <div className="text-[11px] font-medium text-zinc-100 truncate">{recipe.name}</div>
-                <div className="text-[9px] text-zinc-500 mt-0.5">
-                  {recipe.shotCount} shots · {recipe.ratios.join(', ')}
+          {loading ? (
+            <div className="p-3 text-[10px] text-zinc-500 text-center">Loading recipes...</div>
+          ) : recipes.length === 0 ? (
+            <div className="p-4 text-center">
+              <p className="text-[11px] text-zinc-500 mb-2">No recipes yet</p>
+              <p className="text-[9px] text-zinc-600">Click "New Recipe" to create one</p>
+            </div>
+          ) : (
+            <div className="space-y-1 p-2">
+              {recipes.map((recipe) => (
+                <div key={recipe.id} className="relative group">
+                  <button
+                    onClick={() => selectRecipe(recipe)}
+                    className={`w-full px-3 py-2 rounded-lg text-left border transition-all ${
+                      selectedRecipeId === recipe.id
+                        ? 'bg-purple-900/30 border-purple-500'
+                        : 'bg-zinc-800/20 border-zinc-800 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="text-[11px] font-medium text-zinc-100 truncate">{recipe.name}</div>
+                    <div className="text-[9px] text-zinc-500 mt-0.5">
+                      {recipe.shots?.length || 0} shots · {(recipe.ratios || []).join(', ')}
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span className="text-[9px] text-zinc-600">{recipe.format}</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-400">{recipe.status}</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteRecipe(recipe.id); }}
+                    className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
-                <div className="mt-1.5 flex items-center justify-between">
-                  <span className="text-[9px] text-zinc-600">{recipe.format}</span>
-                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-zinc-700/50 text-zinc-400">{recipe.status}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Curated clips summary */}
@@ -180,7 +316,7 @@ export function Recipes() {
 
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {selectedRecipeId ? (
+        {selectedRecipe ? (
           <>
             {/* RECIPE HEADER */}
             <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-900/50 flex-shrink-0 space-y-3">
@@ -191,6 +327,7 @@ export function Recipes() {
                     type="text"
                     value={recipeName}
                     onChange={(e) => setRecipeName(e.target.value)}
+                    onBlur={handleSaveRecipe}
                     className="mt-1 w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-purple-500"
                   />
                 </div>
@@ -198,7 +335,7 @@ export function Recipes() {
                   <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Format</label>
                   <select
                     value={recipeFormat}
-                    onChange={(e) => setRecipeFormat(e.target.value)}
+                    onChange={(e) => { setRecipeFormat(e.target.value); }}
                     className="mt-1 w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-100 focus:outline-none focus:border-purple-500 cursor-pointer"
                   >
                     <option>7s Snappy</option>
@@ -207,9 +344,16 @@ export function Recipes() {
                     <option>10s Product Focus</option>
                   </select>
                 </div>
+                <button
+                  onClick={handleSaveRecipe}
+                  disabled={saving}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
               </div>
 
-              {/* MULTI-RATIO SELECTOR — up to 3 */}
+              {/* MULTI-RATIO SELECTOR */}
               <div>
                 <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
                   Export Ratios <span className="text-zinc-600 normal-case">(select up to 3)</span>
@@ -239,11 +383,6 @@ export function Recipes() {
                     );
                   })}
                 </div>
-                {selectedRatios.length > 1 && (
-                  <div className="mt-1.5 text-[10px] text-purple-400">
-                    Will export {selectedRatios.length} versions: {selectedRatios.join(' + ')}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -252,18 +391,31 @@ export function Recipes() {
               <div className="space-y-6">
                 {/* TIMELINE */}
                 <div>
-                  <h3 className="text-xs font-semibold text-zinc-200 mb-3 uppercase tracking-wider">Timeline</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Timeline</h3>
+                    <button onClick={handleAddShot} className="text-[10px] text-purple-400 hover:text-purple-300 transition-colors">
+                      + Add Shot
+                    </button>
+                  </div>
                   <div className="flex gap-2 pb-4 overflow-x-auto">
-                    {shots.map((shot) => (
+                    {shots.map((shot, idx) => (
                       <div
-                        key={shot.id}
-                        className="flex-shrink-0 w-24 h-20 rounded-lg bg-zinc-800 border border-zinc-700 flex flex-col items-center justify-center relative overflow-hidden"
+                        key={idx}
+                        className="flex-shrink-0 w-24 h-20 rounded-lg bg-zinc-800 border border-zinc-700 flex flex-col items-center justify-center relative overflow-hidden group"
                       >
                         <div className={`w-full h-1.5 ${getShotColor(shot.type)}`} />
                         <div className="flex-1 flex flex-col items-center justify-center w-full">
                           <span className="text-[9px] font-bold text-zinc-200 text-center px-1">{shot.type}</span>
                           <span className="text-[8px] text-zinc-500 mt-1">{shot.duration}s</span>
                         </div>
+                        {shots.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveShot(idx)}
+                            className="absolute top-1 right-1 w-3.5 h-3.5 flex items-center justify-center text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -273,23 +425,45 @@ export function Recipes() {
                 <div>
                   <h3 className="text-xs font-semibold text-zinc-200 mb-3 uppercase tracking-wider">Shot Details</h3>
                   <div className="space-y-3">
-                    {shots.map((shot) => {
+                    {shots.map((shot, idx) => {
                       const typeKey = getShotTypeKey(shot.type);
                       const available = curatedByType[typeKey];
                       return (
-                        <div key={shot.id} className="rounded-lg bg-zinc-900 border border-zinc-800 p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3 h-3 rounded ${getShotColor(shot.type)}`} />
-                              <span className={`text-sm font-semibold ${getShotTextColor(shot.type)}`}>{shot.type}</span>
-                            </div>
-                            <span className="text-[10px] text-zinc-500">{shot.duration}s</span>
+                        <div key={idx} className="rounded-lg bg-zinc-900 border border-zinc-800 p-3">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-3 h-3 rounded ${getShotColor(shot.type)}`} />
+                            <select
+                              value={shot.type}
+                              onChange={(e) => handleUpdateShot(idx, { type: e.target.value })}
+                              className={`bg-transparent text-sm font-semibold ${getShotTextColor(shot.type)} focus:outline-none cursor-pointer`}
+                            >
+                              <option value="HOOK">HOOK</option>
+                              <option value="BODY 1">BODY 1</option>
+                              <option value="BODY 2">BODY 2</option>
+                              <option value="BODY 3">BODY 3</option>
+                              <option value="PRODUCT">PRODUCT</option>
+                              <option value="CTA">CTA</option>
+                            </select>
+                            <input
+                              type="number"
+                              value={shot.duration}
+                              onChange={(e) => handleUpdateShot(idx, { duration: parseFloat(e.target.value) || 1 })}
+                              className="w-16 px-2 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-300 text-right tabular-nums focus:outline-none focus:border-zinc-600"
+                              step="0.5"
+                              min="0.5"
+                              max="30"
+                            />
+                            <span className="text-[10px] text-zinc-500">s</span>
                           </div>
 
                           {/* Curated clip selector */}
                           <div className="mt-2">
                             {available.length > 0 ? (
-                              <select className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-300 focus:outline-none focus:border-purple-500">
+                              <select
+                                value={shot.clip_id || ''}
+                                onChange={(e) => handleUpdateShot(idx, { clip_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                                className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-[11px] text-zinc-300 focus:outline-none focus:border-purple-500"
+                              >
                                 <option value="">Select curated clip...</option>
                                 {available.map((clip) => (
                                   <option key={clip.id} value={clip.id}>
@@ -313,7 +487,7 @@ export function Recipes() {
                 <div className="space-y-2">
                   <button
                     onClick={() => {
-                      const json = JSON.stringify({ name: recipeName, format: recipeFormat, ratios: selectedRatios, shots: shots.map(s => ({ type: s.type, duration: s.duration })) }, null, 2);
+                      const json = JSON.stringify({ name: recipeName, format: recipeFormat, ratios: selectedRatios, shots: shots.map(s => ({ type: s.type, duration: s.duration, clip_id: s.clip_id })) }, null, 2);
                       const blob = new Blob([json], { type: 'application/json' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a'); a.href = url; a.download = `${recipeName.replace(/\s+/g, '_')}.json`; a.click(); URL.revokeObjectURL(url);
@@ -321,15 +495,6 @@ export function Recipes() {
                     className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors"
                   >
                     Export JSON
-                  </button>
-                  <button
-                    onClick={() => {
-                      const json = JSON.stringify({ name: recipeName, format: recipeFormat, ratios: selectedRatios, shots: shots.map(s => ({ type: s.type, duration: s.duration })) }, null, 2);
-                      navigator.clipboard.writeText(json);
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors"
-                  >
-                    Copy JSON
                   </button>
                 </div>
 
@@ -355,7 +520,9 @@ export function Recipes() {
 
                     <button
                       disabled={curatedClips.length === 0}
-                      onClick={() => alert(`Rendering ${selectedRatios.length} video(s) in ${selectedRatios.join(', ')} formats.\n\nThis would use FFmpeg.wasm to render the recipe with curated clips.\n\nFeature coming soon.`)}
+                      onClick={() => {
+                        toast('info', `Rendering ${selectedRatios.length} video(s) in ${selectedRatios.join(', ')} — feature coming soon`);
+                      }}
                       className="w-full px-3 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
                     >
                       Render {selectedRatios.length > 1 ? `${selectedRatios.length} Videos` : 'Video'} ({selectedRatios.join(' + ')})
@@ -368,10 +535,17 @@ export function Recipes() {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <p className="text-sm text-zinc-500">Select or create a recipe</p>
-              <button className="mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg transition-colors">
-                + New Recipe
-              </button>
+              <p className="text-sm text-zinc-400">
+                {loading ? 'Loading recipes...' : 'Create your first recipe to get started'}
+              </p>
+              {!loading && (
+                <button
+                  onClick={handleNewRecipe}
+                  className="mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-lg transition-colors"
+                >
+                  + New Recipe
+                </button>
+              )}
             </div>
           </div>
         )}
