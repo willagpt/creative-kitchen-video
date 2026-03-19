@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/Toast';
-import { Shuffle, Settings2, Zap, Check, Download, BookOpen } from 'lucide-react';
+import { Shuffle, Settings2, Zap, Check, Download, BookOpen, X } from 'lucide-react';
 import type { Clip } from '@/types';
 
 /* ── Types ─────────────────────────────────────────────────────────── */
@@ -670,6 +670,10 @@ export function Generate() {
             <div className="flex-1" />
 
             {/* Actions */}
+            <button onClick={() => setVariations([])}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-red-400/60 hover:text-red-400 border border-zinc-700 hover:border-red-700/50 rounded-lg transition-colors">
+              <X className="w-3 h-3" /> Clear
+            </button>
             <button onClick={handleRegenerate} disabled={!hasApproved}
               className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors">
               <Shuffle className="w-3 h-3" /> Re-shuffle

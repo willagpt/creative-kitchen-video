@@ -246,6 +246,40 @@ export function Review() {
     }
   };
 
+  /* ── Clear all variations ───────────────────────────────────────── */
+  const handleClearAll = async () => {
+    if (renderedVideos.length === 0) return;
+    if (!window.confirm(`Delete all ${renderedVideos.length} variations? This cannot be undone.`)) return;
+    try {
+      const ids = renderedVideos.map(v => v.id);
+      const { error } = await supabase.from('rendered_videos').delete().in('id', ids);
+      if (error) throw error;
+      setRenderedVideos([]);
+      setSelectedAds(new Set());
+      setSelectedVideoId(null);
+      toast('success', `Cleared ${ids.length} variations`);
+    } catch (err) {
+      console.error('Clear all error:', err);
+      toast('error', 'Failed to clear');
+    }
+  };
+
+  /* ── Delete single variation ─────────────────────────────────────── */
+  const handleDeleteOne = async (id: string) => {
+    try {
+      const { error } = await supabase.from('rendered_videos').delete().eq('id', id);
+      if (error) throw error;
+      setRenderedVideos(renderedVideos.filter(v => v.id !== id));
+      if (selectedVideoId === id) setSelectedVideoId(null);
+      selectedAds.delete(id);
+      setSelectedAds(new Set(selectedAds));
+      toast('success', 'Variation deleted');
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast('error', 'Failed to delete');
+    }
+  };
+
   /* ── Re-iterate flow ────────────────────────────────────────────── */
   const handleReiterate = (video: RenderedVideo) => {
     const perf = predictPerformance(video, clips);
@@ -400,6 +434,15 @@ export function Review() {
             >
               Select all
             </button>
+            {renderedVideos.length > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="flex items-center gap-1 text-[11px] text-red-500/70 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+                Clear all
+              </button>
+            )}
             {selectedCount > 0 && (
               <>
                 {queuedInSelection > 0 && (
@@ -674,25 +717,34 @@ export function Review() {
                       </span>
                     </div>
 
-                    {/* Quick approve/reject for queued */}
-                    {video.status === 'queued' && (
-                      <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleApprove([video.id])}
-                          className="w-6 h-6 rounded flex items-center justify-center text-emerald-500 hover:bg-emerald-500/10 transition-colors"
-                          title="Approve"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleReject([video.id])}
-                          className="w-6 h-6 rounded flex items-center justify-center text-red-500 hover:bg-red-500/10 transition-colors"
-                          title="Reject"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
+                    {/* Quick approve/reject/delete */}
+                    <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                      {video.status === 'queued' && (
+                        <>
+                          <button
+                            onClick={() => handleApprove([video.id])}
+                            className="w-6 h-6 rounded flex items-center justify-center text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                            title="Approve"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleReject([video.id])}
+                            className="w-6 h-6 rounded flex items-center justify-center text-red-500 hover:bg-red-500/10 transition-colors"
+                            title="Reject"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => handleDeleteOne(video.id)}
+                        className="w-6 h-6 rounded flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        title="Delete permanently"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
