@@ -373,7 +373,7 @@ export function Curate() {
         .insert({
           clip_id: firstPendingClip.id,
           workspace_id: workspace.id,
-          label: `Segment ${segments.length + 1}`,
+          label: `${firstPendingClip.name.slice(0, 20)}_seg${segments.length + 1}`,
           trim_in: trimIn ?? 0,
           trim_out: trimOut ?? firstPendingClip.duration,
           created_by: user.id,
