@@ -726,11 +726,12 @@ export function Curate() {
         </div>
       </div>
 
-      {/* Main content area */}
-      <div className="flex flex-1 overflow-auto relative">
+      {/* Main content area — left: video+controls, right: clip list */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* LEFT: Curation panel */}
         <div className="flex-1 overflow-auto p-6">
           {firstPendingClip ? (
-            <div className="max-w-2xl mx-auto space-y-6">
+            <div className="max-w-2xl space-y-6">
               {/* Video player area */}
               <div className="space-y-4">
                 <div className="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center border border-zinc-800" style={filterStyle}>
@@ -1021,6 +1022,49 @@ export function Curate() {
 
         {/* Colour Grade Panel */}
         {firstPendingClip && showColourPanel && <ColourGradePanel />}
+
+        {/* RIGHT: Scrollable clip list sidebar */}
+        <div className="w-72 border-l border-zinc-800 bg-zinc-900/30 overflow-y-auto flex-shrink-0">
+          <div className="p-3 border-b border-zinc-800 text-xs text-zinc-400">
+            {pendingClips.length} clips · {currentClipIndex + 1} of {pendingClips.length}
+          </div>
+          <div className="divide-y divide-zinc-800/50">
+            {pendingClips.map((clip) => {
+              const isActive = clip.id === firstPendingClip?.id;
+              const clipType = (clip.type || 'body').toLowerCase();
+              const typeBg = clipType === 'hook' ? 'bg-[#ff6b6b]' : clipType === 'product' ? 'bg-[#f0a030]' : clipType === 'cta' ? 'bg-[#4ecdc4]' : 'bg-[#6b8aff]';
+              return (
+                <div
+                  key={clip.id}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
+                    isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
+                  }`}
+                >
+                  {/* Thumbnail mini */}
+                  <div className="w-16 h-10 rounded bg-zinc-800 flex-shrink-0 flex items-center justify-center overflow-hidden relative">
+                    {clip.thumbnail_url ? (
+                      <img src={clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-[7px] text-zinc-600 text-center px-1 truncate">{clip.name.slice(0, 12)}</span>
+                    )}
+                    <div className={`absolute top-0.5 left-0.5 text-white text-[6px] font-bold px-1 py-0 rounded-sm uppercase ${typeBg}`}>
+                      {clipType}
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] text-zinc-300 truncate">{clip.name}</div>
+                    <div className="text-[9px] text-zinc-600">{clip.duration.toFixed(1)}s · {clip.ratio}</div>
+                  </div>
+                  {/* Status dot */}
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    clip.approved ? 'bg-emerald-500' : clip.rejected ? 'bg-red-500' : 'bg-zinc-600'
+                  }`} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
