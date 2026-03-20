@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/Toast';
-import { Shuffle, Settings2, Zap, Check, Download, BookOpen, X } from 'lucide-react';
+import { Shuffle, Settings2, Zap, Check, Download, BookOpen, X, Send } from 'lucide-react';
 import type { Clip } from '@/types';
 
 /* ── Types ─────────────────────────────────────────────────────────── */
@@ -317,14 +317,6 @@ export function Generate() {
     return result;
   }, [clipsByType, selectedFormat, selectedVariation, selectedPersona, selectedPillar, useMusic, brandPrefix, selectedRatio]);
 
-  useEffect(() => {
-    if (filteredClips.length > 0) {
-      setVariations(generateVariations(columnCount));
-    } else {
-      setVariations([]);
-    }
-  }, [columnCount, generateVariations, filteredClips.length]);
-
   const handleRegenerate = () => {
     setVariations(generateVariations(columnCount));
   };
@@ -340,12 +332,22 @@ export function Generate() {
 
   const selectedCount = variations.filter(v => v.selected).length;
 
-  /* ── Push to Supabase & navigate ───────────────────────────────── */
-  const handleGenerate = async () => {
+  /* ── Generate preview (local only — no DB push) ─────────────────── */
+  const handleGenerate = () => {
+    if (!hasApproved) return;
+    setGenerating(true);
+    const newVariations = generateVariations(columnCount);
+    setVariations(newVariations);
+    setGenerating(false);
+    toast('success', `${newVariations.length} variations generated`);
+  };
+
+  /* ── Push selected to Supabase & navigate to Review ─────────────── */
+  const handlePushToReview = async () => {
     const selected = variations.filter(v => v.selected);
     if (selected.length === 0) return;
     setGenerating(true);
-    toast('info', `Generating ${selected.length} variations...`);
+    toast('info', `Sending ${selected.length} variations to review...`);
 
     try {
       const records = selected.map(v => ({
@@ -368,12 +370,12 @@ export function Generate() {
         console.error('Supabase insert error:', error);
         toast('error', `DB error: ${error.message}`);
       } else {
-        toast('success', `${selected.length} variations saved! Redirecting to Review...`);
+        toast('success', `${selected.length} variations queued! Redirecting to Review...`);
       }
       navigate('/review');
     } catch (err) {
-      console.error('Generation error:', err);
-      toast('error', 'Generation failed — check console');
+      console.error('Push to review error:', err);
+      toast('error', 'Failed to push to review — check console');
     } finally {
       setGenerating(false);
     }
@@ -611,12 +613,12 @@ export function Generate() {
         {/* Generate button */}
         <div className="px-5 py-5">
           <button onClick={handleGenerate}
-            disabled={generating || !hasApproved || selectedCount === 0}
+            disabled={generating || !hasApproved}
             className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed text-white text-base font-bold transition-colors flex items-center justify-center gap-2">
             {generating ? (
               <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Generating...</>
             ) : (
-              <><Zap className="w-4 h-4" />Generate {selectedCount} Variations</>
+              <><Zap className="w-4 h-4" />{variations.length > 0 ? 'Re-generate' : 'Generate'} {columnCount} Variations</>
             )}
           </button>
           {!hasApproved && <p className="text-[10px] text-amber-500 text-center mt-2">Approve clips in Curate first</p>}
@@ -680,6 +682,10 @@ export function Generate() {
               <button onClick={handleSaveToRecipes} disabled={selectedCount === 0}
                 className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors font-semibold disabled:opacity-30">
                 <BookOpen className="w-3 h-3" /> Save {selectedCount} to Recipes
+              </button>
+              <button onClick={handlePushToReview} disabled={selectedCount === 0 || generating}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors font-semibold disabled:opacity-30">
+                <Send className="w-3 h-3" /> Send to Review
               </button>
             </div>
           </div>
