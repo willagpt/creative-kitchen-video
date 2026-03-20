@@ -77,18 +77,20 @@ const DEFAULT_SHOTS: ShotSlot[] = [];
 /* ── Shot colour helpers ───────────────────────────────────────────── */
 
 function shotBgColor(type: string): string {
-  if (type.startsWith('HOOK')) return '#ff6b6b';
-  if (type.startsWith('BODY')) return '#6b8aff';
-  if (type.startsWith('PRODUCT')) return '#f0a030';
-  if (type.startsWith('CTA')) return '#4ecdc4';
+  const t = type.toUpperCase();
+  if (t.startsWith('HOOK') || t.includes('HOK') || t.includes('ATT')) return '#ff6b6b';
+  if (t.startsWith('BODY') || t.includes('BOD') || t.includes('INT') || t.includes('DES')) return '#6b8aff';
+  if (t.startsWith('PRODUCT') || t.includes('PRO')) return '#f0a030';
+  if (t.startsWith('CTA') || t.includes('ACT')) return '#4ecdc4';
   return '#71717a';
 }
 
 function shotTypeLabel(type: string): string {
-  if (type.startsWith('HOOK')) return 'hook';
-  if (type.startsWith('BODY')) return 'body';
-  if (type.startsWith('PRODUCT')) return 'product';
-  if (type.startsWith('CTA')) return 'cta';
+  const t = type.toUpperCase();
+  if (t.startsWith('HOOK') || t.includes('HOK') || t.includes('ATT')) return 'hook';
+  if (t.startsWith('BODY') || t.includes('BOD') || t.includes('INT') || t.includes('DES')) return 'body';
+  if (t.startsWith('PRODUCT') || t.includes('PRO')) return 'product';
+  if (t.startsWith('CTA') || t.includes('ACT')) return 'cta';
   return 'body';
 }
 
