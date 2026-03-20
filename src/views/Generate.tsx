@@ -442,9 +442,8 @@ export function Generate() {
     const raw = clip.name || clip.fullname || '';
     const name = raw
       .replace(/\.(mp4|mov|webm)$/i, '')
-      .replace(/\s+/g, '_')
-      .replace(/_+$/, '');
-    return name.length > 9 ? name.slice(0, 9) : name;
+      .trimEnd();
+    return name.length > 12 ? name.slice(0, 12) : name;
   };
 
   return (
