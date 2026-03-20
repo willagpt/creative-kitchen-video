@@ -436,12 +436,15 @@ export function Generate() {
   const hasApproved = clips.filter(c => c.approved).length > 0;
   const shotTypeColorDot: Record<string, string> = { hook: '#ff6b6b', body: '#6b8aff', product: '#f0a030', cta: '#4ecdc4' };
 
-  /* ── Short clip label for slot cells (V1-style, ~10 chars) ───── */
+  /* ── Short clip label for slot cells — match CTA style ────────── */
   const clipLabel = (clip: Clip | null) => {
     if (!clip) return '—';
     const raw = clip.name || clip.fullname || '';
-    const name = raw.replace(/\.(mp4|mov|webm)$/i, '');
-    return name.length > 10 ? name.slice(0, 10) : name;
+    const name = raw
+      .replace(/\.(mp4|mov|webm)$/i, '')
+      .replace(/\s+/g, '_')
+      .replace(/_+$/, '');
+    return name.length > 9 ? name.slice(0, 9) : name;
   };
 
   return (

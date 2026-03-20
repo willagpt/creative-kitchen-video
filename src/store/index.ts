@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Clip, FilterState, ViewMode, SortField, SortDirection, Workspace } from '@/types';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
@@ -92,7 +93,7 @@ const defaultFilters: FilterState = {
   ratio: '',
 };
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>()(persist((set) => ({
   user: null,
   setUser: (user) => set({ user }),
   signOut: () => set({
@@ -220,4 +221,11 @@ export const useStore = create<AppState>((set) => ({
 
   reiterateContext: null,
   setReiterateContext: (reiterateContext) => set({ reiterateContext }),
+}), {
+  name: 'ck-video-store',
+  partialize: (state) => ({
+    workspace: state.workspace,
+    clips: state.clips,
+    activeTab: state.activeTab,
+  }),
 }));
