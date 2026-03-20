@@ -405,14 +405,33 @@ export function Generate() {
     const selected = variations.filter(v => v.selected);
     if (selected.length === 0 || !workspace) return;
     try {
-      const recipes = selected.map(v => ({
-        workspace_id: workspace.id,
-        name: v.name,
-        format: formatData?.name || '10s HS1',
-        ratios: [selectedRatio],
-        shots: v.slots.map(s => ({ type: `${s.phase}/${s.type}`, duration: Math.round(v.totalDuration * s.weight * 10) / 10, clip_id: s.clip?.id })),
-        status: 'draft',
-      }));
+      const typeMap: Record<string, string> = { HOK: 'HOOK', BOD: 'BODY', PRO: 'PRODUCT', CTA: 'CTA' };
+      const recipes = selected.map(v => {
+        let runningTime = 0;
+        return {
+          workspace_id: workspace.id,
+          name: v.name,
+          format: formatData?.name || '10s HS1',
+          ratios: [selectedRatio],
+          shots: v.slots.map(s => ({
+            type: typeMap[s.type] || s.type,
+            clipName: s.clip?.name || '',
+            clipMeta: s.clip ? `${(s.clip.type || 'body').toUpperCase()} · ${s.clip.ratio || '16:9'} · ${s.clip.duration.toFixed(1)}s` : '',
+            clipType: s.clip ? (s.clip.type || 'body').toLowerCase() : 'body',
+            duration: Math.round(v.totalDuration * s.weight * 10) / 10,
+            clip_id: s.clip?.id,
+          })),
+          overlays: v.overlays.map(o => {
+            const dur = 1.3;
+            const item = { text: o.text, position: 'Center' as const, startTime: runningTime, duration: dur };
+            runningTime += dur;
+            return item;
+          }),
+          music_track: v.musicTrack || null,
+          music_volume: 0.25,
+          status: 'draft',
+        };
+      });
       const { error } = await supabase.from('recipes').insert(recipes);
       if (error) throw error;
       toast('success', `${selected.length} recipe(s) saved`);
