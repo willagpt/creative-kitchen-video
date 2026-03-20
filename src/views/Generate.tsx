@@ -438,11 +438,12 @@ export function Generate() {
   const hasApproved = clips.filter(c => c.approved).length > 0;
   const shotTypeColorDot: Record<string, string> = { hook: '#ff6b6b', body: '#6b8aff', product: '#f0a030', cta: '#4ecdc4' };
 
-  /* ── Short clip label — V1 uses truncate CSS, no JS truncation ── */
+  /* ── Short clip label — V1 truncates to exactly 10 chars ────────── */
   const clipLabel = (clip: Clip | null) => {
     if (!clip) return '—';
     const raw = clip.name || clip.fullname || '';
-    return raw.replace(/\.(mp4|mov|webm)$/i, '').trimEnd();
+    const clean = raw.replace(/\.(mp4|mov|webm)$/i, '').trimEnd();
+    return clean.length > 10 ? clean.slice(0, 10) : clean;
   };
 
   return (
@@ -719,24 +720,24 @@ export function Generate() {
                     {v.slots.map((slot, si) => {
                       const phaseColor = PHASE_COLOR[slot.phase] || '#a1a1aa';
                       return (
-                        <div key={si} className="flex-1 relative group">
+                        <div key={si} className="flex-1 min-w-0 relative group">
                           <div
-                            className="h-14 rounded-sm flex flex-col items-center justify-center"
+                            className="h-14 rounded-sm flex flex-col items-center justify-center overflow-hidden"
                             style={{ backgroundColor: PHASE_BG[slot.phase] || 'transparent' }}
                           >
                             <span
-                              className="text-[7px] font-bold uppercase"
+                              className="text-[7px] font-bold uppercase leading-none"
                               style={{ color: phaseColor }}
                             >
                               {slot.phase.toLowerCase()}
                             </span>
                             <span
-                              className="text-[7px] font-bold uppercase mt-0.5"
+                              className="text-[7px] font-bold uppercase mt-0.5 leading-none"
                               style={{ color: phaseColor }}
                             >
                               {slot.type.toLowerCase()}
                             </span>
-                            <span className="text-[8px] text-zinc-500 truncate max-w-full px-0.5">
+                            <span className="block w-full text-[8px] text-zinc-500 text-center truncate px-0.5 mt-0.5">
                               {clipLabel(slot.clip)}
                             </span>
                           </div>
