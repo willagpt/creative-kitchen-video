@@ -165,6 +165,13 @@ const SLOT_BG: Record<string, string> = {
   CTA: 'bg-teal-700/50',
 };
 
+const SLOT_HEADER_BG: Record<string, string> = {
+  ATT: 'bg-green-600/80',
+  INT: 'bg-blue-600/60',
+  DES: 'bg-amber-600/60',
+  ACT: 'bg-teal-600/70',
+};
+
 
 /* ── Component ─────────────────────────────────────────────────────── */
 
@@ -429,25 +436,12 @@ export function Generate() {
   const hasApproved = clips.filter(c => c.approved).length > 0;
   const shotTypeColorDot: Record<string, string> = { hook: '#ff6b6b', body: '#6b8aff', product: '#f0a030', cta: '#4ecdc4' };
 
-  /* ── Clip label helper ────────────────────────────────────────── */
+  /* ── Short clip label for slot cells (V1-style, ~10 chars) ───── */
   const clipLabel = (clip: Clip | null) => {
     if (!clip) return '—';
     const raw = clip.name || clip.fullname || '';
-    return raw.replace(/\.(mp4|mov|webm)$/i, '').replace(/^(PGHS|IMG_|VID_)/i, '');
-  };
-
-  /* ── Deduplicate slots into summary chips (e.g. 2× BOD) ──────── */
-  const slotSummary = (slots: AidaSlot[]) => {
-    const groups: { phase: string; type: string; count: number; clipName: string }[] = [];
-    for (const s of slots) {
-      const last = groups[groups.length - 1];
-      if (last && last.phase === s.phase && last.type === s.type) {
-        last.count++;
-      } else {
-        groups.push({ phase: s.phase, type: s.type, count: 1, clipName: clipLabel(s.clip) });
-      }
-    }
-    return groups;
+    const name = raw.replace(/\.(mp4|mov|webm)$/i, '');
+    return name.length > 10 ? name.slice(0, 10) : name;
   };
 
   return (
@@ -695,81 +689,63 @@ export function Generate() {
           </div>
         )}
 
-        {/* Variation cards */}
+        {/* Variation cards — V1 style */}
         {variations.length > 0 ? (
           <div className="flex-1 overflow-auto p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {variations.map(v => {
-                const groups = slotSummary(v.slots);
-                return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {variations.map(v => (
                 <div key={v.idx}
                   className={`rounded-xl border overflow-hidden transition-colors ${
                     v.selected ? 'border-purple-500/40 bg-[#13131d]' : 'border-zinc-800/50 bg-[#111118]'
                   }`}>
-                  {/* Card header — checkbox + name + duration */}
-                  <div className="flex items-center gap-3 px-3 py-2.5 border-b border-zinc-800/30">
+                  {/* Checkbox + AIDA slot columns */}
+                  <div className="flex items-stretch">
                     <button onClick={() => toggleVariationSelection(v.idx)}
-                      className="flex-shrink-0">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                        v.selected ? 'bg-purple-600 border-purple-600' : 'border-zinc-600 hover:border-zinc-500'
+                      className={`w-14 flex items-center justify-center border-r border-zinc-800/40 flex-shrink-0 ${
+                        v.selected ? 'bg-purple-600/20' : 'hover:bg-zinc-800/30'
                       }`}>
-                        {v.selected && <Check className="w-3 h-3 text-white" />}
+                      <div className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center ${
+                        v.selected ? 'bg-purple-600 border-purple-600' : 'border-zinc-600'
+                      }`}>
+                        {v.selected && <Check className="w-4 h-4 text-white" />}
                       </div>
                     </button>
-                    <span className="text-xs font-semibold text-zinc-200 truncate flex-1">{v.name}</span>
-                    <span className="text-[10px] text-zinc-500 tabular-nums flex-shrink-0">{v.totalDuration}s</span>
-                  </div>
-
-                  {/* AIDA flow — compact colored badges in a row */}
-                  <div className="px-3 py-2 flex flex-wrap gap-1">
-                    {groups.map((g, gi) => (
-                      <div key={gi}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded ${SLOT_BG[g.type]}`}
-                        title={g.clipName}>
-                        <span className={`text-[9px] font-bold text-white/90 uppercase`}>{g.phase}</span>
-                        <span className="text-[9px] text-white/50">·</span>
-                        <span className="text-[9px] text-white/70 uppercase">{g.type}</span>
-                        {g.count > 1 && <span className="text-[8px] text-white/40">×{g.count}</span>}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Clip assignments — clean readable list */}
-                  <div className="px-3 pb-2">
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    <div className="flex-1 flex">
                       {v.slots.map((slot, si) => (
-                        <div key={si} className="flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
-                            backgroundColor: slot.type === 'HOK' ? '#ff6b6b' : slot.type === 'BOD' ? '#6b8aff' : slot.type === 'PRO' ? '#f0a030' : '#4ecdc4'
-                          }} />
-                          <span className="text-[10px] text-zinc-400 truncate max-w-[100px]">{clipLabel(slot.clip)}</span>
+                        <div key={si} className="flex-1 min-w-0 border-r border-zinc-800/30 last:border-r-0">
+                          <div className={`px-1 py-1.5 text-center ${SLOT_HEADER_BG[slot.phase]}`}>
+                            <div className="text-[9px] font-bold text-white/90 uppercase leading-none">{slot.phase}</div>
+                            <div className="text-[8px] text-white/50 uppercase leading-tight mt-0.5">{slot.type}</div>
+                          </div>
+                          <div className={`px-1 py-2 text-center ${SLOT_BG[slot.type]}`}>
+                            <div className="text-[9px] text-white/70 truncate">{clipLabel(slot.clip)}</div>
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Text overlays strip */}
-                  <div className="px-3 py-1.5 flex gap-1.5 overflow-x-auto border-t border-zinc-800/20 scrollbar-none">
-                    {v.overlays.slice(0, 4).map((overlay, oi) => (
-                      <span key={oi} className="flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-zinc-800/50 text-zinc-500 whitespace-nowrap max-w-[140px] overflow-hidden text-ellipsis">
-                        {overlay.text}
+                  {/* Text overlays */}
+                  <div className="px-3 py-2 flex gap-2 overflow-x-auto border-t border-zinc-800/30 scrollbar-none">
+                    {v.overlays.slice(0, 5).map((overlay, oi) => (
+                      <span key={oi} className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded bg-zinc-800/60 text-zinc-400 border border-zinc-700/40 whitespace-nowrap">
+                        &ldquo;{overlay.text}&rdquo;
                       </span>
                     ))}
                   </div>
 
-                  {/* Footer — music + actions */}
+                  {/* Footer — name + music + actions */}
                   <div className="px-3 py-2 border-t border-zinc-800/30 flex items-center gap-3">
+                    <span className="text-[11px] font-semibold text-zinc-200 truncate">{v.name}</span>
                     {v.musicTrack && (
-                      <span className="text-[9px] text-zinc-500 truncate flex-1">♫ {v.musicTrack}</span>
+                      <span className="text-[9px] text-zinc-500 truncate">♫ {v.musicTrack}</span>
                     )}
-                    {!v.musicTrack && <div className="flex-1" />}
-                    <button className="text-[10px] text-purple-400 hover:text-purple-300 transition-colors font-medium">
-                      Use as base
-                    </button>
+                    <div className="flex-1" />
+                    <button className="text-[10px] text-purple-400 hover:text-purple-300 transition-colors font-medium">Use as base</button>
+                    <button className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors">More</button>
                   </div>
                 </div>
-                );
-              })}
+              ))}
             </div>
           </div>
         ) : (
