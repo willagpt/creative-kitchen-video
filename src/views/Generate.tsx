@@ -158,7 +158,7 @@ function pickRandomN<T>(arr: T[], n: number): T[] {
   return shuffled.slice(0, n);
 }
 
-/* ── V1-exact phase-based slot colors ────────────────────────────── */
+/* ── V1-exact phase colours (getComputedStyle verified) ──────────── */
 
 const PHASE_COLOR: Record<string, string> = {
   ATT: '#ff6b6b',
@@ -174,6 +174,14 @@ const PHASE_BG: Record<string, string> = {
   ACT: 'rgba(149,225,211,0.082)',
 };
 
+/* ── Clip name display — V1 truncates to exactly 10 chars ────────── */
+
+function clipLabel(clip: Clip | null): string {
+  if (!clip) return '—';
+  const raw = clip.name || clip.fullname || '';
+  const clean = raw.replace(/\.(mp4|mov|webm)$/i, '').trimEnd();
+  return clean.length > 10 ? clean.slice(0, 10) : clean;
+}
 
 /* ── Component ─────────────────────────────────────────────────────── */
 
@@ -182,7 +190,7 @@ export function Generate() {
   const { clips, setActiveTab, reiterateContext, setReiterateContext, workspace } = useStore();
   const [generating, setGenerating] = useState(false);
 
-  // Strategy
+  /* Strategy options */
   const personas: StrategyOption[] = [
     { id: 'busy-prof', name: 'Busy Professional' },
     { id: 'health-ent', name: 'Health Enthusiast' },
@@ -265,7 +273,6 @@ export function Generate() {
     const usedHookIds = new Set<number>();
 
     for (let i = 0; i < count; i++) {
-      // For each slot, pick a clip from the matching pool
       const slots: AidaSlot[] = template.slots.map(tmpl => {
         const pool = clipsByType[tmpl.type];
         let clip: Clip | null = null;
@@ -280,7 +287,6 @@ export function Generate() {
           clip = pickRandom(pool);
         }
 
-        // For hooks, try to get unique per variation
         if (tmpl.type === 'HOK' && pool.length > 1) {
           const unused = pool.filter(c => !usedHookIds.has(c.id));
           clip = unused.length > 0 ? pickRandom(unused) : pickRandom(pool);
@@ -288,23 +294,13 @@ export function Generate() {
 
         if (clip && tmpl.type === 'HOK') usedHookIds.add(clip.id);
 
-        return {
-          phase: tmpl.phase,
-          type: tmpl.type,
-          clip,
-          weight: tmpl.weight,
-        };
+        return { phase: tmpl.phase, type: tmpl.type, clip, weight: tmpl.weight };
       });
 
-      // Pick overlay texts (pick random subset from pool)
       const numOverlays = Math.min(template.slots.length, overlayPool.length);
       const overlays = pickRandomN(overlayPool, numOverlays).map(text => ({ text }));
-
-      // Pick music track
       const music = useMusic ? pickRandom(MUSIC_TRACKS) : null;
-
       const totalDuration = Math.round(formatDuration * 10) / 10;
-
       const formatShort = template.label.replace(/\s/g, '_').replace(/[()]/g, '');
 
       result.push({
@@ -319,9 +315,8 @@ export function Generate() {
     }
 
     return result;
-  }, [clipsByType, selectedFormat, selectedVariation, selectedPersona, selectedPillar, useMusic, brandPrefix, selectedRatio, personaData]);
+  }, [clipsByType, selectedFormat, selectedVariation, selectedPersona, selectedPillar, useMusic, brandPrefix, selectedRatio]);
 
-  // Auto-generate on settings change
   useEffect(() => {
     if (filteredClips.length > 0) {
       setVariations(generateVariations(columnCount));
@@ -425,7 +420,8 @@ export function Generate() {
     }
   };
 
-  /* ── Sub-components ────────────────────────────────────────────── */
+  /* ── Tiny sub-components ────────────────────────────────────────── */
+
   const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
     <button
       onClick={onChange}
@@ -438,19 +434,17 @@ export function Generate() {
   const hasApproved = clips.filter(c => c.approved).length > 0;
   const shotTypeColorDot: Record<string, string> = { hook: '#ff6b6b', body: '#6b8aff', product: '#f0a030', cta: '#4ecdc4' };
 
-  /* ── Short clip label — V1 truncates to exactly 10 chars ────────── */
-  const clipLabel = (clip: Clip | null) => {
-    if (!clip) return '—';
-    const raw = clip.name || clip.fullname || '';
-    const clean = raw.replace(/\.(mp4|mov|webm)$/i, '').trimEnd();
-    return clean.length > 10 ? clean.slice(0, 10) : clean;
-  };
+  /* ════════════════════════════════════════════════════════════════
+     JSX — rebuilt from zero, V1 DOM-matched
+     ════════════════════════════════════════════════════════════════ */
 
   return (
     <div className="h-full flex overflow-hidden bg-zinc-950">
-      {/* ═══ LEFT SIDEBAR ═══ */}
+
+      {/* ═══════════ LEFT SIDEBAR ═══════════ */}
       <div className="w-80 border-r border-zinc-800 bg-zinc-900/30 flex flex-col overflow-y-auto flex-shrink-0">
-        {/* Header */}
+
+        {/* Sidebar header */}
         <div className="p-5 pb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-zinc-100">Generate</h2>
@@ -463,16 +457,22 @@ export function Generate() {
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => { const idx = personas.findIndex(p => p.id === selectedPersona); setSelectedPersona(personas[(idx + 1) % personas.length].id); }}
-              className="px-3 py-1.5 rounded-full border border-teal-500/50 bg-teal-500/10 text-[11px] text-zinc-200 font-medium hover:bg-teal-500/20 transition-colors">
+            <button
+              onClick={() => { const idx = personas.findIndex(p => p.id === selectedPersona); setSelectedPersona(personas[(idx + 1) % personas.length].id); }}
+              className="px-3 py-1.5 rounded-full border border-teal-500/50 bg-teal-500/10 text-[11px] text-zinc-200 font-medium hover:bg-teal-500/20 transition-colors"
+            >
               {personaData?.name}
             </button>
-            <button onClick={() => { const idx = pillars.findIndex(p => p.id === selectedPillar); setSelectedPillar(pillars[(idx + 1) % pillars.length].id); }}
-              className="px-3 py-1.5 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-[11px] text-zinc-200 font-medium hover:bg-emerald-500/20 transition-colors">
+            <button
+              onClick={() => { const idx = pillars.findIndex(p => p.id === selectedPillar); setSelectedPillar(pillars[(idx + 1) % pillars.length].id); }}
+              className="px-3 py-1.5 rounded-full border border-emerald-500/50 bg-emerald-500/10 text-[11px] text-zinc-200 font-medium hover:bg-emerald-500/20 transition-colors"
+            >
               {pillarData?.name}
             </button>
-            <button onClick={() => { const idx = formats.findIndex(f => f.id === selectedFormat); setSelectedFormat(formats[(idx + 1) % formats.length].id); }}
-              className="px-3 py-1.5 rounded-full border border-amber-500/50 bg-amber-500/10 text-[11px] text-zinc-200 font-medium hover:bg-amber-500/20 transition-colors">
+            <button
+              onClick={() => { const idx = formats.findIndex(f => f.id === selectedFormat); setSelectedFormat(formats[(idx + 1) % formats.length].id); }}
+              className="px-3 py-1.5 rounded-full border border-amber-500/50 bg-amber-500/10 text-[11px] text-zinc-200 font-medium hover:bg-amber-500/20 transition-colors"
+            >
               {formatData?.name} ({aidaTemplate?.label.match(/\d+s/)?.[0] || ''})
             </button>
             <div className="px-3 py-1.5 rounded-full border border-zinc-600 bg-zinc-800/50 text-[11px] text-zinc-400">
@@ -481,7 +481,7 @@ export function Generate() {
           </div>
         </div>
 
-        {/* Strategy editor */}
+        {/* Strategy editor panel */}
         {strategyEditorOpen && (
           <div className="px-5 pb-4 border-b border-zinc-800 space-y-3">
             {[
@@ -623,11 +623,12 @@ export function Generate() {
         </div>
       </div>
 
-      {/* ═══ MAIN CONTENT — V1-style variation cards ═══ */}
-      <div className="flex-1 overflow-auto flex flex-col bg-[#0d0d14]">
+      {/* ═══════════ MAIN CONTENT — V1-exact variation cards ═══════════ */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#0d0d14]">
+
         {/* Re-iterate banner */}
         {reiterateContext && (
-          <div className="mx-6 mt-4 p-4 bg-amber-600/10 border border-amber-600/30 rounded-lg">
+          <div className="mx-6 mt-4 p-4 bg-amber-600/10 border border-amber-600/30 rounded-lg flex-shrink-0">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-amber-400 text-sm font-semibold">Re-iterating: {reiterateContext.adName}</span>
@@ -645,108 +646,113 @@ export function Generate() {
           </div>
         )}
 
-        {/* Top bar — selection count + strategy pills + actions */}
+        {/* Top bar */}
         {variations.length > 0 && (
-          <div className="px-6 py-3 border-b border-zinc-800/60 flex items-center gap-4 flex-shrink-0 flex-wrap">
-            {/* Select all checkbox */}
-            <button onClick={toggleSelectAll}
-              className={`w-7 h-7 rounded-md border-2 flex items-center justify-center transition-colors ${
-                selectedCount === variations.length ? 'bg-purple-600 border-purple-600' : 'border-zinc-600 hover:border-zinc-500'
-              }`}>
-              {selectedCount === variations.length && <Check className="w-4 h-4 text-white" />}
-            </button>
-            <span className="text-sm font-semibold text-zinc-200">
-              {selectedCount}/{variations.length} selected
-            </span>
-
-            {/* Strategy pills */}
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900/50 flex-shrink-0">
+            {/* Left: checkbox + count + pills + duration */}
+            <div className="flex items-center gap-3">
+              <button onClick={toggleSelectAll}
+                className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                  selectedCount === variations.length ? 'bg-purple-600 border-purple-600' : 'border-zinc-600 hover:border-zinc-500'
+                }`}>
+                {selectedCount === variations.length && <Check className="w-3.5 h-3.5 text-white" />}
+              </button>
+              <span className="text-sm font-semibold text-zinc-200">{selectedCount}/{variations.length} selected</span>
               <span className="px-2.5 py-1 rounded-full bg-teal-500/15 border border-teal-500/30 text-[11px] text-teal-300 font-medium">{personaData?.name}</span>
               <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 font-medium">{pillarData?.name}</span>
               <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-[11px] text-amber-300 font-medium">{formatData?.name}</span>
+              <span className="text-[11px] text-zinc-500 tabular-nums">~{aidaTemplate?.label.match(/\d+/)?.[0] || '10'}.3s</span>
             </div>
-
-            <span className="text-[11px] text-zinc-500 tabular-nums">~{aidaTemplate?.label.match(/\d+/)?.[0] || '10'}.3s</span>
-
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Actions */}
-            <button onClick={() => setVariations([])}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-red-400/60 hover:text-red-400 border border-zinc-700 hover:border-red-700/50 rounded-lg transition-colors">
-              <X className="w-3 h-3" /> Clear
-            </button>
-            <button onClick={handleRegenerate} disabled={!hasApproved}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors">
-              <Shuffle className="w-3 h-3" /> Re-shuffle
-            </button>
-            <button onClick={handleExportBatch} disabled={selectedCount === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors disabled:opacity-30">
-              <Download className="w-3 h-3" /> Export Batch
-            </button>
-            <button onClick={handleSaveToRecipes} disabled={selectedCount === 0}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors font-semibold disabled:opacity-30">
-              <BookOpen className="w-3 h-3" /> Save {selectedCount} to Recipes
-            </button>
+            {/* Right: actions */}
+            <div className="flex items-center gap-2">
+              <button onClick={() => setVariations([])}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-red-400/60 hover:text-red-400 border border-zinc-700 hover:border-red-700/50 rounded-lg transition-colors">
+                <X className="w-3 h-3" /> Clear
+              </button>
+              <button onClick={handleRegenerate} disabled={!hasApproved}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors">
+                <Shuffle className="w-3 h-3" /> Re-shuffle
+              </button>
+              <button onClick={handleExportBatch} disabled={selectedCount === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-colors disabled:opacity-30">
+                <Download className="w-3 h-3" /> Export Batch
+              </button>
+              <button onClick={handleSaveToRecipes} disabled={selectedCount === 0}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors font-semibold disabled:opacity-30">
+                <BookOpen className="w-3 h-3" /> Save {selectedCount} to Recipes
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Variation cards — V1-exact layout */}
+        {/* Card grid */}
         {variations.length > 0 ? (
           <div className="flex-1 overflow-y-auto p-4">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
               {variations.map(v => (
-                <div key={v.idx}
+                <div
+                  key={v.idx}
                   className={`bg-zinc-900 border rounded-lg overflow-hidden transition-colors ${
                     v.selected ? 'border-indigo-500/60 ring-1 ring-indigo-500/20' : 'border-zinc-800'
-                  }`}>
-                  {/* Slots row — checkbox + 7 AIDA slot columns */}
+                  }`}
+                >
+                  {/* ── Slots row: checkbox + AIDA slot columns ── */}
                   <div className="flex gap-px p-2">
-                    {/* Inline checkbox */}
+                    {/* Checkbox */}
                     <button
                       onClick={() => toggleVariationSelection(v.idx)}
-                      className={`flex-shrink-0 w-6 h-14 rounded-sm flex items-center justify-center mr-1 transition-colors ${
-                        v.selected ? 'bg-indigo-600/30' : 'bg-zinc-800/40 hover:bg-zinc-700/40'
-                      }`}
+                      className="flex-shrink-0 w-6 h-14 rounded-sm flex items-center justify-center mr-1"
                     >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center text-[10px] transition-colors ${
-                        v.selected ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-zinc-600'
-                      }`}>
+                      <div
+                        className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                          v.selected ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-zinc-600'
+                        }`}
+                      >
                         {v.selected && <Check className="w-3 h-3" />}
                       </div>
                     </button>
 
-                    {/* Slot columns */}
-                    {v.slots.map((slot, si) => {
-                      const phaseColor = PHASE_COLOR[slot.phase] || '#a1a1aa';
-                      return (
-                        <div key={si} className="flex-1 min-w-0 relative group">
-                          <div
-                            className="h-14 rounded-sm flex flex-col items-center justify-center overflow-hidden"
-                            style={{ backgroundColor: PHASE_BG[slot.phase] || 'transparent' }}
+                    {/* Slot columns — each flex-1 with min-w-0 to allow shrinking */}
+                    {v.slots.map((slot, si) => (
+                      <div key={si} className="flex-1 min-w-0 relative group">
+                        {/*
+                          V1 cell: h-14, phase bg at 8.2% opacity.
+                          Uses items-center + justify-center for vertical/horizontal centering.
+                          overflow-hidden clips any content that exceeds the cell.
+                        */}
+                        <div
+                          className="h-14 rounded-sm flex flex-col items-center justify-center overflow-hidden"
+                          style={{ backgroundColor: PHASE_BG[slot.phase] }}
+                        >
+                          {/* Phase label */}
+                          <span
+                            className="text-[7px] font-bold uppercase leading-none"
+                            style={{ color: PHASE_COLOR[slot.phase] }}
                           >
-                            <span
-                              className="text-[7px] font-bold uppercase leading-none"
-                              style={{ color: phaseColor }}
-                            >
-                              {slot.phase.toLowerCase()}
-                            </span>
-                            <span
-                              className="text-[7px] font-bold uppercase mt-0.5 leading-none"
-                              style={{ color: phaseColor }}
-                            >
-                              {slot.type.toLowerCase()}
-                            </span>
-                            <span className="block w-full text-[8px] text-zinc-500 text-center truncate px-0.5 mt-0.5">
-                              {clipLabel(slot.clip)}
-                            </span>
-                          </div>
+                            {slot.phase.toLowerCase()}
+                          </span>
+                          {/* Shot type label */}
+                          <span
+                            className="text-[7px] font-bold uppercase leading-none mt-0.5"
+                            style={{ color: PHASE_COLOR[slot.phase] }}
+                          >
+                            {slot.type.toLowerCase()}
+                          </span>
+                          {/* Clip name — JS-truncated to 10 chars, CSS max-w-full + truncate as safety net */}
+                          <span className="text-[8px] text-zinc-500 truncate max-w-full px-0.5 mt-0.5">
+                            {clipLabel(slot.clip)}
+                          </span>
                         </div>
-                      );
-                    })}
+                        {/* Hover overlay with pin/ban (V1 has this, renders on group-hover) */}
+                        <div className="absolute inset-0 bg-black/70 rounded-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                          <button className="w-5 h-5 rounded bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center text-[8px] text-zinc-300">📌</button>
+                          <button className="w-5 h-5 rounded bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center text-[8px] text-zinc-300">🚫</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Text overlays — V1 pills */}
+                  {/* ── Overlay pills ── */}
                   <div className="flex gap-1 px-2 pb-1">
                     {v.overlays.slice(0, 5).map((overlay, oi) => (
                       <span key={oi} className="flex-1 text-center text-[8px] text-zinc-400 bg-zinc-800 rounded px-1 py-0.5 truncate">
@@ -755,15 +761,15 @@ export function Generate() {
                     ))}
                   </div>
 
-                  {/* Footer — V1 layout */}
+                  {/* ── Footer ── */}
                   <div className="px-3 py-2 border-t border-zinc-800/50 flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs font-semibold text-zinc-200 truncate">{v.name}</span>
                       {v.musicTrack && (
-                        <span className="text-[10px] text-zinc-500 truncate">♪ {v.musicTrack}</span>
+                        <span className="text-[10px] text-zinc-500 truncate flex-shrink-0">♪ {v.musicTrack}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <button className="text-[10px] text-purple-400 hover:text-purple-300 transition-colors font-medium whitespace-nowrap">Use as base</button>
                       <button className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap">More</button>
                     </div>
