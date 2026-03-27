@@ -21,6 +21,7 @@ export interface Clip {
   approved: boolean;
   rejected: boolean;
   archived: boolean;
+  hook_eligible: boolean;
   trim_in: number | null;
   trim_out: number | null;
   curation_note: string | null;
